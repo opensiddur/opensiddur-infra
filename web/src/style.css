@@ -465,3 +465,131 @@ footer {
     margin-top: 20px;
   }
 }
+
+.brand-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+.account-menu {
+  position: relative;
+  flex: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.account-menu summary {
+  padding: 10px 14px;
+  border: 1px solid var(--link);
+  border-radius: 3px;
+  color: var(--link);
+}
+.account-menu[open] {
+  z-index: 20;
+}
+.account-menu a,
+.account-menu button {
+  display: block;
+  padding: 12px;
+  width: 230px;
+  background: var(--surface);
+  color: var(--link);
+  text-align: left;
+  border: 1px solid var(--border);
+}
+.account-menu a {
+  position: absolute;
+  top: 100%;
+  right: 0;
+}
+.account-menu button {
+  position: absolute;
+  top: calc(100% + 48px);
+  right: 0;
+}
+.account-page {
+  min-height: 60vh;
+}
+.account-page #account {
+  max-width: 800px;
+}
+.layout {
+  grid-template-areas: "toolbar toolbar" "project project" "settings preview" "settings output";
+}
+.search-select {
+  position: relative;
+  margin: 16px 0;
+}
+.search-input {
+  position: relative;
+}
+.search-input input {
+  padding-right: 76px;
+}
+.search-input button {
+  position: absolute;
+  top: 1px;
+  bottom: 1px;
+  border: 0;
+  background: transparent;
+  padding: 0 10px;
+  color: var(--link);
+}
+.search-toggle {
+  right: 0;
+}
+.search-clear {
+  right: 30px;
+}
+.search-results {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 100%;
+  background: var(--surface);
+  border: 1px solid var(--link);
+  box-shadow: 0 4px 12px #0003;
+  z-index: 15;
+}
+.search-results ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.search-results li {
+  cursor: pointer;
+  padding: 11px 13px;
+  border-bottom: 1px solid var(--border);
+  line-height: 1.4;
+}
+.search-results li[aria-selected="true"],
+.search-results li:hover {
+  background: var(--orange);
+  color: #222;
+}
+.search-status {
+  padding: 9px 13px;
+  margin: 0;
+  font-size: 13px;
+  color: var(--muted);
+}
+@media (max-width: 900px) {
+  .layout {
+    grid-template-areas: "toolbar" "project" "settings" "preview" "output";
+  }
+  .brand-row {
+    gap: 10px;
+    align-items: flex-start;
+  }
+  .brand {
+    font-size: 17px;
+    gap: 10px;
+  }
+  .account-menu summary {
+    padding: 8px;
+  }
+}

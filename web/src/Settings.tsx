@@ -1,6 +1,7 @@
 import { useState } from "react";
 import type { Value } from "./api";
 import { Help, projectLabel } from "./BuilderControls";
+import { SearchSelect } from "./SearchSelect";
 export function resolve(schema: Value, root: Value): Value {
   return schema?.$ref
     ? root.$defs[schema.$ref.split("/").at(-1)]
@@ -260,7 +261,6 @@ export function Sources({
   onChange: (v: string[]) => void;
   ordered?: boolean;
 }) {
-  const [filter, setFilter] = useState("");
   const List = ordered ? "ol" : "ul";
   const help: Record<string, string> = {
     "Text priorities":
@@ -316,32 +316,18 @@ export function Sources({
           </li>
         ))}
       </List>
-      <input
-        placeholder="Find a source…"
-        aria-label={`Find ${label}`}
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
+      <SearchSelect
+        label={`Add ${label.toLowerCase()}`}
+        options={projects
+          .filter((p) => !value.includes(p.id))
+          .map((p) => ({
+            value: p.id,
+            label: projectLabel(p),
+            keywords: p.id,
+          }))}
+        clearAfterSelect
+        onSelect={(id) => onChange([...value, id])}
       />
-      <select
-        aria-label={`Add ${label}`}
-        value=""
-        onChange={(e) => {
-          if (e.target.value) onChange([...value, e.target.value]);
-        }}
-      >
-        <option value="">Add a source…</option>
-        {projects
-          .filter(
-            (p) =>
-              !value.includes(p.id) &&
-              `${p.title} ${p.id}`.toLowerCase().includes(filter.toLowerCase()),
-          )
-          .map((p) => (
-            <option value={p.id} key={p.id}>
-              {projectLabel(p)}
-            </option>
-          ))}
-      </select>
     </section>
   );
 }
