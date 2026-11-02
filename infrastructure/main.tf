@@ -108,6 +108,9 @@ resource "google_identity_platform_config" "auth" {
   authorized_domains = ["localhost", "${var.project_id}.firebaseapp.com", "${var.project_id}.web.app"]
   sign_in {
     allow_duplicate_emails = false
+    phone_number {
+      enabled = false
+    }
     email {
       enabled           = true
       password_required = false

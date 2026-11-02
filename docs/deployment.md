@@ -14,7 +14,9 @@ bash scripts/bootstrap.sh dev
 bash scripts/bootstrap.sh prod
 ```
 
-Bootstrap creates missing projects, links billing, and creates a private, versioned state bucket outside the main stack. Terraform then provisions the application foundation. Generated environment configuration is in `.runtime/<environment>.auto.tfvars` and is ignored by Git. Record this configuration in a secure operations location. Set `billing_account` there to enable $10/$25/$50 project budget alerts; budgets are notifications, not spending caps.
+Bootstrap creates missing projects, links billing, and creates a private, versioned state bucket outside the main stack. Terraform then provisions the application foundation. Generated environment configuration is in `.runtime/<environment>.auto.tfvars` and is ignored by Git. Terraform working data is isolated per environment under `.runtime/terraform-dev` and `.runtime/terraform-prod`, preventing backend selection from crossing environments in one checkout. Record this configuration in a secure operations location. Set `billing_account` there to enable $10/$25/$50 project budget alerts; budgets are notifications, not spending caps.
+
+Before direct Terraform state/output/plan/apply commands, select the environment with `source scripts/common.sh dev` (or `prod`) and run `tf_init`. The wrapper scripts do this automatically.
 
 The state bucket may contain sensitive OAuth configuration; restrict access. Do not commit it or Terraform plans/state.
 

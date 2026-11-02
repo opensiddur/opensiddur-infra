@@ -10,6 +10,7 @@ STATE_BUCKET=${STATE_BUCKET:-$PROJECT_ID-tfstate}
 CONFIG="$REPO_ROOT/.runtime/$ENVIRONMENT.auto.tfvars"
 mkdir -p "$REPO_ROOT/.runtime"
 chmod 700 "$REPO_ROOT/.runtime"
+export TF_DATA_DIR="$REPO_ROOT/.runtime/terraform-$ENVIRONMENT"
 export TF_VAR_project_id="$PROJECT_ID" TF_VAR_environment="$ENVIRONMENT" TF_VAR_region="$REGION"
 tf_init() {
  export GOOGLE_OAUTH_ACCESS_TOKEN="${GOOGLE_OAUTH_ACCESS_TOKEN:-$(gcloud auth print-access-token)}"
