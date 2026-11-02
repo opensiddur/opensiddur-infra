@@ -8,7 +8,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v6
-        with: {version: '0.12.21'}
+        with: { version: "0.12.21" }
       - run: uv sync --frozen --python 3.12
       - run: uv run pytest
   web:
@@ -16,7 +16,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
-        with: {node-version: '24', cache: npm, cache-dependency-path: web/package-lock.json}
+        with:
+          {
+            node-version: "24",
+            cache: npm,
+            cache-dependency-path: web/package-lock.json,
+          }
       - run: npm --prefix web ci
       - run: npm --prefix web run build
       - run: npm --prefix web test
@@ -26,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: hashicorp/setup-terraform@v3
-        with: {terraform_version: '1.13.5'}
+        with: { terraform_version: "1.13.5" }
       - run: terraform -chdir=infrastructure fmt -check -recursive
       - run: terraform -chdir=infrastructure init -backend=false
       - run: terraform -chdir=infrastructure validate

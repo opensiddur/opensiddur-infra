@@ -2,7 +2,7 @@ locals {
   services = toset(["run.googleapis.com", "cloudbuild.googleapis.com", "artifactregistry.googleapis.com",
     "firestore.googleapis.com", "storage.googleapis.com", "cloudtasks.googleapis.com", "cloudscheduler.googleapis.com",
     "firebase.googleapis.com", "firebasehosting.googleapis.com", "identitytoolkit.googleapis.com",
-  "iam.googleapis.com", "iamcredentials.googleapis.com", "sts.googleapis.com", "logging.googleapis.com"])
+  "iam.googleapis.com", "iamcredentials.googleapis.com", "sts.googleapis.com", "logging.googleapis.com", "firebaserules.googleapis.com"])
   accounts       = toset(["api", "worker", "dispatcher", "build", "deployer"])
   runtime        = var.image != ""
   job_name       = "builder-${substr(var.release_id, 0, 35)}"
@@ -206,4 +206,40 @@ resource "google_firestore_index" "expiry" {
     order      = "ASCENDING"
   }
   depends_on = [google_firestore_database.default]
+}
+resource "google_storage_bucket_iam_member" "build_bucket_metadata" {
+  bucket = google_storage_bucket.builds.name
+  role   = "roles/storage.legacyBucketReader"
+  member = "serviceAccount:${google_service_account.account["build"].email}"
+}
+resource "google_firestore_field" "expiry_ttl" {
+  collection = "builder_records"
+  field      = "expires_at"
+  ttl_config {}
+  index_config {}
+  depends_on = [google_firestore_database.default]
+}
+
+resource "google_firebase_hosting_site" "default" {
+  provider = google-beta
+  project  = var.project_id
+  site_id  = var.project_id
+  app_id   = google_firebase_web_app.web.app_id
+}
+resource "google_firebaserules_ruleset" "firestore" {
+  provider = google-beta
+  project  = var.project_id
+  source {
+    files {
+      name    = "firestore.rules"
+      content = "rules_version = '2'; service cloud.firestore { match /databases/{database}/documents { match /{document=**} { allow read, write: if false; } } }"
+    }
+  }
+  depends_on = [google_firebase_project.default]
+}
+resource "google_firebaserules_release" "firestore" {
+  provider     = google-beta
+  project      = var.project_id
+  name         = "cloud.firestore"
+  ruleset_name = google_firebaserules_ruleset.firestore.name
 }

@@ -66,7 +66,8 @@ class Dispatcher:
                     "headers": {"Content-Type": "application/json"},
                     "body": json.dumps({"id": build["id"]}).encode(),
                     "oidc_token": {
-                        "service_account_email": self.config.dispatcher_email
+                        "service_account_email": self.config.dispatcher_email,
+                        "audience": build.get("preview_url") or self.config.preview_url,
                     },
                 },
             }

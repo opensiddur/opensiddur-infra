@@ -24,4 +24,4 @@ class Config:
     admins: tuple[str, ...] = tuple(
         filter(None, os.getenv("ADMIN_EMAILS", "").split(","))
     )
-    consent_version: str = "2026-11-01"
+    consent_version: str = os.getenv("CONSENT_VERSION", "2026-11-01")

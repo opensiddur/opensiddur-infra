@@ -29,7 +29,7 @@ export APP_CHECK_SITE_KEY='YOUR_RECAPTCHA_ENTERPRISE_SITE_KEY'
 bash scripts/deploy.sh dev
 ```
 
-The script runs unit tests and frontend build, assembles license notices, builds images with Cloud Build, validates every bundled preset and produces demo PDF/HTML, resolves immutable image digests, applies the runtime stack, publishes Firebase Hosting, and checks health. A failed container smoke test prevents promotion. Build logs and source archives are retained in the managed build bucket for 30 days.
+The script runs unit tests and frontend build, assembles license notices, builds images with Cloud Build, validates every bundled preset and produces demo PDF/HTML, resolves immutable image digests, applies the runtime stack, publishes Firebase Hosting, and checks health. A failed container smoke test prevents promotion. The infra lock controls shared Python dependencies; the upstream lock supplies additional processor packages. Package compatibility and ASGI app construction are checked before export smoke tests. Build logs and source archives are retained in the managed build bucket for 30 days.
 
 Run `scripts/deploy.sh prod` to deploy production after dev verification. Public submissions default off. Complete the privacy/legal tasks and authentication setup before setting `submissions_enabled = true` and `require_app_check = true` in the environment configuration.
 
@@ -47,12 +47,12 @@ Internal account UUIDs are independent of Firebase UIDs. Token verification and 
 
 ## GitHub deployment
 
-Terraform creates a GitHub OIDC trust restricted to this repository and `refs/heads/main`. Configure GitHub `dev` and `prod` environments, with production reviewers:
+Terraform creates a GitHub OIDC trust restricted to this repository and `refs/heads/main`. Configure GitHub `dev` and `prod` environments, (production reviewers are optional and pause automatic promotions):
 
-- Variables: `WIF_PROVIDER`, `DEPLOY_SERVICE_ACCOUNT`, `PRIVACY_OPERATOR`, `PRIVACY_CONTACT`, `APP_CHECK_SITE_KEY`, `GOOGLE_AUTH_ENABLED`.
+- Variables: `WIF_PROVIDER`, `DEPLOY_SERVICE_ACCOUNT`, `PRIVACY_OPERATOR`, `PRIVACY_CONTACT`, `PRIVACY_READY`, `APP_CHECK_SITE_KEY`, `GOOGLE_AUTH_ENABLED`.
 - Secret: `DEPLOY_CONFIG`, containing the private environment tfvars (without image coordinates; release history is recovered from the private state bucket).
 
-Get provider and deployment identity with `terraform output`. Run the `Deploy` workflow from main. IAM/bootstrap changes require the local privileged operator; the GitHub deployment identity is for existing-stack runtime updates. If a Terraform foundation change requires an additional privilege, apply that change locally rather than expanding the trust indiscriminately.
+Get provider and deployment identity with `terraform output`. Run the `Deploy` workflow from main. The scheduled upstream workflow detects new published pairs, verifies/deploys development first, and then verifies/promotes production; it records the deployed upstream lock in the state bucket. No published projects release means no automatic promotion. Runtime promotion uses an explicit Terraform target list in `scripts/runtime-targets.sh`, excluding foundation/IAM/billing resources; full reconciliation is the bootstrap command. IAM/bootstrap changes require the local privileged operator; the GitHub deployment identity is for existing-stack runtime updates. If a Terraform foundation change requires an additional privilege, apply that change locally rather than expanding the trust indiscriminately.
 
 ## Observe and intervene
 
@@ -95,3 +95,11 @@ gcloud projects delete opensiddur-builder-dev
 ```
 
 Both commands are destructive. Project deletion and provider backup/log erasure follow Google's recovery and retention policies. Removing an environment does not delete the GitHub repository or local worktrees.
+
+For a scripted complete teardown of a dedicated project (including state), use:
+
+```bash
+CONFIRM_PURGE=opensiddur-builder-dev CONFIRM_PROJECT_DELETE=opensiddur-builder-dev bash scripts/destroy-project.sh dev
+```
+
+Do not point complete-project teardown at a shared/pre-existing project. The two matching confirmations are mandatory, and no teardown is run automatically during deployment.

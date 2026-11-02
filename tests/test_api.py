@@ -24,7 +24,7 @@ class Verifier:
             "auth_time": time.time(),
         }
 
-    def delete(self, token):
+    def delete(self, issuer, token):
         pass
 
 
@@ -79,7 +79,11 @@ class ApiTests(unittest.TestCase):
         self.client = TestClient(self.app)
         self.headers = {"Authorization": "Bearer owner"}
         self.client.get("/api/v1/account", headers=self.headers)
-        self.client.post("/api/v1/consent", headers=self.headers)
+        self.client.post(
+            "/api/v1/consent",
+            headers=self.headers,
+            json={"version": config.consent_version},
+        )
 
     def submit(self):
         response = self.client.post(
@@ -216,3 +220,32 @@ class ApiTests(unittest.TestCase):
             ).status_code,
             404,
         )
+
+    def test_server_processing_requires_consent_not_just_a_disabled_button(self):
+        self.client.delete("/api/v1/consent", headers=self.headers)
+        self.assertEqual(
+            self.client.post(
+                "/api/v1/validate", headers=self.headers, json={}
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.put(
+                "/api/v1/presets/" + str(uuid.uuid4()),
+                headers=self.headers,
+                json={"settings": {}},
+            ).status_code,
+            403,
+        )
+        self.assertEqual(
+            self.client.post(
+                "/api/v1/assets", headers=self.headers, content=b"image"
+            ).status_code,
+            403,
+        )
+
+    def test_request_size_limit_applies_before_validation(self):
+        response = self.client.post(
+            "/api/v1/validate", headers=self.headers, json={"title": "x" * 300000}
+        )
+        self.assertEqual(response.status_code, 413)

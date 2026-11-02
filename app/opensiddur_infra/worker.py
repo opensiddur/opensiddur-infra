@@ -133,6 +133,17 @@ def execute(identifier, config=None, store=None, storage=None):
                         ):
                             raise Stopped("Output exceeds 250 MiB")
                     if process.returncode:
+                        if (
+                            os.getenv("SAMPLE_DIAGNOSTICS") == "true"
+                            and row["settings"].get("book", {}).get("project")
+                            == "infra_demo"
+                        ):
+                            print(
+                                (work / "worker.log").read_text(errors="replace")[
+                                    -6000:
+                                ],
+                                file=sys.stderr,
+                            )
                         raise RuntimeError(
                             f"{stage} failed; please try different settings or report the build UUID"
                         )
@@ -203,9 +214,22 @@ def execute(identifier, config=None, store=None, storage=None):
                     results[output] = {"state": "failed", "message": str(exc)}
                     if isinstance(exc, Stopped):
                         break
+            if (out / "book.tex").exists() and (out / "logo.png").exists():
+                tex = out / "book.tex"
+                tex.write_text(
+                    tex.read_text().replace(str(out / "logo.png"), "logo.png")
+                )
+            for requested in formats:
+                results.setdefault(
+                    requested,
+                    {"state": "skipped", "message": "Runtime allowance reached"},
+                )
             manifest = json.loads((Path(config.bundle) / "release.json").read_text())
             manifest.update(
-                build_id=identifier, formats=results, sample=row["type"] != "full"
+                build_id=identifier,
+                formats=results,
+                sample=row["type"] != "full",
+                image=os.getenv("IMAGE_DIGEST", "development"),
             )
             if row["type"] != "full":
                 manifest["sample_notice"] = (

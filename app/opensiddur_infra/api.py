@@ -50,6 +50,14 @@ def create_app(
 
     @app.middleware("http")
     async def headers(request, call_next):
+        if (
+            request.method in {"POST", "PUT", "PATCH"}
+            and request.url.path != "/api/v1/assets"
+        ):
+            if len(await request.body()) > 262144:
+                return JSONResponse(
+                    {"detail": "Settings request exceeds 256 KiB"}, status_code=413
+                )
         response = await call_next(request)
         response.headers.update(
             {
@@ -79,6 +87,11 @@ def create_app(
             claims = accounts.verifier.verify(request.headers["Authorization"][7:])
             if claims.get("email") not in config.admins:
                 raise HTTPException(503, "The builder is in a private pilot")
+        account = store.get(f"account:{principal.account_id}")
+        if (account.get("consent") or {}).get("version") != config.consent_version:
+            raise HTTPException(
+                403, "Consent to the current processing notice is required"
+            )
         if config.app_check:
             try:
                 from firebase_admin import app_check
@@ -167,7 +180,23 @@ def create_app(
     @app.get("/api/v1/account")
     def account(principal=Depends(authenticated)):
         row = store.get(f"account:{principal.account_id}")
+        from datetime import datetime, timezone
+
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        full = store.get(f"quota:{principal.account_id}:{day}:full") or {
+            "counts": {},
+            "seconds": 0,
+        }
+        preview_quota = store.get(f"quota:{principal.account_id}:{day}:preview") or {
+            "counts": {},
+            "seconds": 0,
+        }
         return {
+            "allowances": {
+                "builds_remaining": max(0, 5 - full["counts"].get("full", 0)),
+                "build_seconds_remaining": max(0, 10800 - full["seconds"]),
+                "preview_seconds_remaining": max(0, 1200 - preview_quota["seconds"]),
+            },
             "id": principal.account_id,
             "consent": row.get("consent"),
             "consent_version": config.consent_version,
@@ -175,7 +204,9 @@ def create_app(
         }
 
     @app.post("/api/v1/consent")
-    def consent(principal=Depends(authenticated)):
+    def consent(data: dict, principal=Depends(authenticated)):
+        if data.get("version") != config.consent_version:
+            raise HTTPException(409, "Privacy notice changed; reload before consenting")
         key = f"account:{principal.account_id}"
 
         def accept(values):
@@ -188,7 +219,7 @@ def create_app(
         return {"ok": True}
 
     @app.post("/api/v1/validate")
-    def validation(data: dict):
+    def validation(data: dict, principal=Depends(compute)):
         return {"settings": validate(data)}
 
     class Submission(BaseModel):
@@ -205,7 +236,12 @@ def create_app(
             raise HTTPException(
                 409, "The catalog changed; reload and validate your settings"
             )
-        if set(data.formats) - {"pdf", "html", "tex", "xml"}:
+        if len(set(data.formats)) != len(data.formats) or set(data.formats) - {
+            "pdf",
+            "html",
+            "tex",
+            "xml",
+        }:
             raise HTTPException(422, "Unknown output format")
         owned_asset(principal.account_id, data.asset)
         settings = validate(data.settings)
@@ -329,6 +365,7 @@ def create_app(
                 raise ValueError()
             image.load()
             image = ImageOps.exif_transpose(image).convert("RGBA")
+            image.info.clear()
             output = io.BytesIO()
             image.save(output, format="PNG")
         except Exception:
@@ -363,9 +400,7 @@ def create_app(
         return store.list("preset", principal.account_id)
 
     @app.put("/api/v1/presets/{identifier}")
-    def save_preset(
-        identifier: uuid.UUID, data: dict, principal=Depends(authenticated)
-    ):
+    def save_preset(identifier: uuid.UUID, data: dict, principal=Depends(compute)):
         key = f"preset:{identifier}"
         existing = store.get(key)
         if existing and existing["owner"] != principal.account_id:
@@ -383,7 +418,15 @@ def create_app(
             "release": config.release,
             "asset": data.get("asset"),
         }
-        store.atomic([key], lambda rows: rows.update({key: row}))
+        account_key = f"account:{principal.account_id}"
+
+        def persist(rows):
+            account = rows[account_key]
+            if not account or not account.get("enabled") or not account.get("consent"):
+                raise HTTPException(403, "Hosted processing consent withdrawn")
+            rows[key] = row
+
+        store.atomic([key, account_key], persist)
         return row
 
     @app.delete("/api/v1/presets/{identifier}")
@@ -444,10 +487,14 @@ def create_app(
             raise HTTPException(401, "Sign in again before deleting your account")
         withdraw(principal)
         key = f"account:{principal.account_id}"
-        store.atomic([key], lambda rows: rows[key].update(enabled=False))
+        store.atomic(
+            [key],
+            lambda rows: rows[key].update(
+                enabled=False, expires=time.time() + 30 * 86400
+            ),
+        )
         for row in store.list("identity", principal.account_id):
-            if row["issuer"].startswith("https://securetoken.google.com/"):
-                accounts.verifier.delete(row["subject"])
+            accounts.verifier.delete(row["issuer"], row["subject"])
             identity_key = f"identity:{row['id']}"
             store.atomic([identity_key], lambda rows: rows.update({identity_key: None}))
         return {"ok": True}

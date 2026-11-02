@@ -15,3 +15,7 @@ web/dist/
 !*.example
 .runtime/
 .bundle/
+
+*.tsbuildinfo
+
+gha-creds-*.json

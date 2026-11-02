@@ -8,9 +8,10 @@ RUN uv sync --frozen --no-dev --no-install-project
 COPY . .
 RUN python scripts/fetch_sources.py /opt/processor && \
     uv export --project /opt/processor --frozen --no-dev --no-emit-project --format requirements-txt --output-file /tmp/processor-requirements.txt && \
-    uv pip install --python .venv/bin/python -r /tmp/processor-requirements.txt && \
+    .venv/bin/python scripts/merge_requirements.py /tmp/processor-requirements.txt /tmp/merged-requirements.txt && \
+    uv pip install --python .venv/bin/python --no-deps -r /tmp/merged-requirements.txt && \
     uv pip install --python .venv/bin/python --no-deps -e /opt/processor && \
-    uv pip install --python .venv/bin/python --no-deps -e .
+    uv pip install --python .venv/bin/python --no-deps -e . && uv pip check --python .venv/bin/python
 ENV PATH="/opt/infra/.venv/bin:$PATH"
 RUN python scripts/bundle.py && python -m opensiddur.exporter.refdb
 RUN useradd --uid 10001 --create-home builder && chmod -R a+rX /opt/processor /opt/bundle

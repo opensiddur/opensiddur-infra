@@ -25,7 +25,7 @@ class FirebaseVerifier:
             raise ValueError("A verified email is required")
         return claims
 
-    def delete(self, subject):
+    def delete(self, issuer, subject):
         from firebase_admin import auth
 
         auth.delete_user(subject)
@@ -62,7 +62,12 @@ class Accounts:
             }
             return account_id
 
-        account_id = self.store.atomic([key, account_key], resolve)
+        existing = self.store.get(key)
+        account_id = (
+            existing["owner"]
+            if existing
+            else self.store.atomic([key, account_key], resolve)
+        )
         account = self.store.get(f"account:{account_id}")
         if not account or not account["enabled"]:
             raise ValueError("Account unavailable")

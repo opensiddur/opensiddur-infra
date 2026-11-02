@@ -11,3 +11,8 @@ infrastructure/.terraform
 .runtime
 .pytest_cache
 .ruff_cache
+
+.env
+.env.*
+gha-creds-*.json
+**/*.tsbuildinfo

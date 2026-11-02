@@ -12,5 +12,7 @@ if ! gcloud storage buckets describe "gs://$STATE_BUCKET" >/dev/null 2>&1; then
 fi
 if [[ ! -f "$CONFIG" ]]; then cp "$REPO_ROOT/infrastructure/$ENVIRONMENT.tfvars.example" "$CONFIG"; fi
 tf_init
+cd "$REPO_ROOT"
+uv run --frozen python scripts/adopt_firebase.py "$PROJECT_ID" "$CONFIG"
 terraform -chdir="$REPO_ROOT/infrastructure" apply -var-file="$CONFIG"
 echo "Foundation ready. State bucket: $STATE_BUCKET"

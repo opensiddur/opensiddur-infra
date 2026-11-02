@@ -19,7 +19,7 @@ resource "google_cloud_run_v2_service" "preview" {
         cpu_idle = true
       }
       dynamic "env" {
-        for_each = merge(local.common_env, { RELEASE_ID = each.key })
+        for_each = merge(local.common_env, { RELEASE_ID = each.key, IMAGE_DIGEST = each.value })
         content {
           name  = env.key
           value = env.value
@@ -46,7 +46,7 @@ resource "google_cloud_run_v2_job" "build" {
         command = ["python", "-m", "opensiddur_infra.worker"]
         resources { limits = { cpu = "2", memory = "4Gi" } }
         dynamic "env" {
-          for_each = merge(local.common_env, { RELEASE_ID = each.key })
+          for_each = merge(local.common_env, { RELEASE_ID = each.key, IMAGE_DIGEST = each.value })
           content {
             name  = env.key
             value = env.value
@@ -110,6 +110,8 @@ resource "google_cloud_run_v2_service_iam_member" "private_preview" {
   member   = "serviceAccount:${google_service_account.account["dispatcher"].email}"
 }
 resource "google_cloud_scheduler_job" "maintenance" {
+  paused = true
+  lifecycle { ignore_changes = [paused] }
   count            = local.runtime ? 1 : 0
   name             = "builder-maintenance"
   region           = var.region

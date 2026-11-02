@@ -3,11 +3,13 @@ import time
 
 
 class Storage:
-    def __init__(self, config):
+    def __init__(self, config, credentials=None):
         from google.cloud import storage
 
         self.config = config
-        self.bucket = storage.Client(project=config.project).bucket(config.bucket)
+        self.bucket = storage.Client(
+            project=config.project, credentials=credentials
+        ).bucket(config.bucket)
 
     def put(self, name, data, content_type="application/octet-stream", expires=None):
         blob = self.bucket.blob(name)
@@ -37,11 +39,14 @@ class Storage:
             scopes=["https://www.googleapis.com/auth/cloud-platform"]
         )
         credentials.refresh(Request())
+        seconds = int(min(300, expires - time.time()))
+        if seconds <= 0:
+            from .builds import Rejected
+
+            raise Rejected("Build expired", 410)
         return self.bucket.blob(name).generate_signed_url(
             version="v4",
-            expiration=datetime.timedelta(
-                seconds=max(1, min(300, int(expires - time.time())))
-            ),
+            expiration=datetime.timedelta(seconds=seconds),
             service_account_email=self.config.worker_email,
             access_token=credentials.token,
             response_disposition='attachment; filename="'

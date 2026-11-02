@@ -48,10 +48,10 @@ class MemoryStore:
 
 
 class FirestoreStore:
-    def __init__(self, project):
+    def __init__(self, project, credentials=None):
         from google.cloud import firestore
 
-        self.db = firestore.Client(project=project)
+        self.db = firestore.Client(project=project, credentials=credentials)
         self.collection = self.db.collection("builder_records")
 
     def ref(self, key):
@@ -75,6 +75,16 @@ class FirestoreStore:
                 if value is None:
                     transaction.delete(self.ref(key))
                 else:
+                    from datetime import datetime, timezone
+
+                    if "expires" in value and (
+                        value.get("kind") != "build"
+                        or value.get("state")
+                        in {"succeeded", "partial", "failed", "cancelled", "expired"}
+                    ):
+                        value["expires_at"] = datetime.fromtimestamp(
+                            value["expires"], timezone.utc
+                        )
                     transaction.set(self.ref(key), value)
             return result
 

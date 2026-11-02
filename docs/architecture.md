@@ -9,7 +9,7 @@ Print and electronic compilations are separate. HTML is built first so a later P
 ## Public API
 
 - `GET /api/v1/catalog`, `/schema`, `/notices`, `/health`
-- `POST /api/v1/validate`
+- Authenticated, consent-gated `POST /api/v1/validate`
 - Authenticated `GET /account`, `POST|DELETE /consent`, `GET /account/export`, `DELETE /account`
 - Authenticated `GET|POST /builds`, `GET|DELETE /builds/{uuid}`, `POST /builds/{uuid}/cancel`
 - `POST /builds/{uuid}/share` with `{enabled: true|false}`; enabling rotates the bearer UUID
