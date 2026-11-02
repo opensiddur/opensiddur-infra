@@ -23,6 +23,7 @@ The Python suite uses synthetic project/settings data. Cloud Build additionally 
 ## Deployment and operation
 
 - [Deployment, rollback and teardown](docs/deployment.md)
+- [Deployment verification and launch prerequisites](docs/verification.md)
 - [Architecture and API](docs/architecture.md)
 - [Privacy and account responsibilities](docs/privacy.md)
 - [Software licensing](docs/licensing.md)
