@@ -4,7 +4,7 @@ The repository and local worktrees are created. The implementation is in [draft 
 
 ## Completed checks
 
-- 25 backend tests using synthetic data, seven frontend regression tests, TypeScript/Vite production build, dependency audit, Terraform formatting/validation, and GitHub CI.
+- 25 backend tests using synthetic data, 14 frontend regression and interaction tests, TypeScript/Vite production build, dependency audit, Terraform formatting/validation, and GitHub CI.
 - Local browser checks loaded 141 projects from the real development API. Existing presets, source reordering, typography editing and YAML round trips preserved font names, processor aliases and false/null custom declarations. The software-notice page loaded the deployed inventory.
 - The real development stack generated PDF, HTML, TeX, print/electronic XML, settings, metadata, notices and ZIP through Cloud Tasks OIDC, the API, Cloud Run Jobs, Firestore and private Storage. Private HTML preview dispatch passed separately.
 - API-service-account IAM signing and an actual signed-URL Storage download passed. Synthetic account records and artifacts were removed.
@@ -21,9 +21,9 @@ Firebase activation is complete for both projects after the operator accepted th
 
 Local Terraform working data is now isolated by environment to prevent backend selection from crossing environments in one checkout. Development's activation plan contained no deletions. Both Firebase projects remain ACTIVE.
 
-Browser sign-in/account acceptance testing still requires the operator to follow the email link. Google OAuth client configuration, production App Check registration, and finalized worldwide privacy/controller details remain launch prerequisites. Public submissions remain disabled. See [deployment instructions](deployment.md) and [privacy responsibilities](privacy.md).
+The operator reports that email-link delivery and sign-in work. Broader account/build acceptance testing remains. Google OAuth client configuration, production App Check registration, and finalized worldwide privacy/controller details remain launch prerequisites. Public submissions remain disabled. See [deployment instructions](deployment.md) and [privacy responsibilities](privacy.md).
 
-Complete the browser acceptance pass after activation: email-link sign-in, explicit consent, automatic HTML and manual PDF samples, full build, private downloads, share rotation/revocation, saved preset/logo reuse, account export, consent withdrawal and deletion. Public anonymous browsing must still work without consent; protected endpoints must reject unauthenticated access and other owners' UUIDs.
+Complete the remaining browser acceptance pass: explicit consent, automatic HTML and manual PDF samples, full build, private downloads, share rotation/revocation, saved preset/logo reuse, account export, consent withdrawal and deletion. Public anonymous browsing must still work without consent; protected endpoints must reject unauthenticated access and other owners' UUIDs.
 
 ## Builder usability review
 
@@ -32,3 +32,11 @@ The updated builder is deployed at https://opensiddur-builder-dev.web.app. Relea
 Browser checks switched between Documentary and Expanded presets and confirmed different YAML, checked advanced-mode persistence and hiding, expanded help text, and verified preview placement at desktop width and at 615px without horizontal overflow. The logo's original attribution metadata is preserved and its separate CC BY-SA 4.0 notice is included publicly and in generated notices.
 
 Post-deployment checks confirm the API reports the new release, the hosted logo is byte-identical to the preserved source asset, and generated notices include its CC BY-SA 4.0 attribution. The hosted preset selector, translation help and desktop typography/preview placement passed browser review without console errors.
+
+## Search, account navigation and license follow-up
+
+Implementation source `912d830` replaces the separate catalog/source search inputs and selects with one accessible searchable dropdown. It ranks matching titles, supports Arrow/Enter/Escape keyboard interaction, shows up to eight matches and excludes already-selected sources. Account controls are on a dedicated view reached from the upper-right Account menu, with sign-in and signed-in sign-out controls. Returning from the account view retains the chosen book and settings; email-link callbacks open that account view.
+
+The licenses page uses a concise summary even when a package stores its full license in the metadata label, and preserves that full text inside the expandable notice. Synthetic DOM interaction tests cover filtering, keyboard selection, duplicate prevention, account navigation with retained settings and the license disclosure. All 25 backend and 14 frontend checks pass. Browser automation was unavailable for this follow-up, so no new visual browser acceptance pass is claimed.
+
+The follow-up is deployed as release `414815b1fb8bd05a0fc8`. Its [Cloud Build smoke test](https://console.cloud.google.com/cloud-build/builds/ac60f20e-17be-4589-9054-47fd4ce7bebd?project=817628492067) passed. Post-deployment HTTP checks confirm the API release and that `/`, `/account`, `/login` and `/licenses` serve the tested bundle; the hosted JavaScript is byte-identical to the production build. Live Hyperframe metadata matches the full-text case covered by the disclosure tests. The browser access host remained unavailable for a visual recheck.
