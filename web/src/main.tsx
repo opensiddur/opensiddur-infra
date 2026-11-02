@@ -16,6 +16,7 @@ import {
   type Value,
 } from "./api";
 import { SchemaField, Sources, Declarations } from "./Settings";
+import { normalizeSettings } from "./settings-data";
 import "./style.css";
 const terminal = new Set([
   "succeeded",
@@ -27,7 +28,7 @@ const terminal = new Set([
 function App() {
   const [catalog, setCatalog] = useState<Value>(),
     [schema, setSchema] = useState<Value>(),
-    [settings, setSettings] = useState<Value>({}),
+    [settings, setSettingsState] = useState<Value>({}),
     [user, setUser] = useState<User | null>(null),
     [account, setAccount] = useState<Value>(),
     [email, setEmail] = useState(sessionStorage.getItem("loginEmail") || ""),
@@ -49,6 +50,11 @@ function App() {
   const generation = useRef(0),
     pendingPreview = useRef<string | null>(null);
   const path = location.pathname;
+  function setSettings(value: Value | ((old: Value) => Value)) {
+    if (typeof value === "function")
+      setSettingsState((old: Value) => normalizeSettings(value(old)));
+    else setSettingsState(normalizeSettings(value));
+  }
   function fail(e: unknown) {
     setError(e instanceof Error ? e.message : String(e));
   }
@@ -84,6 +90,11 @@ function App() {
       setHistory([]);
       setPresets([]);
       setPreview("");
+      setPreviewStatus("Sign in to see a sample");
+      setSettings({});
+      setAsset(null);
+      setMessage("");
+      setError("");
     }
   }, [user]);
   useEffect(() => {
@@ -342,6 +353,7 @@ function App() {
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 />
+                {!catalog && <p role="status">Loading project catalog…</p>}
                 <select
                   id="project"
                   value={settings.book?.project || ""}
@@ -363,6 +375,27 @@ function App() {
                 {selected && (
                   <>
                     <p className="hint">{selected.id}</p>
+                    <details>
+                      <summary>Advanced entry point</summary>
+                      <label>
+                        Starting file
+                        <select
+                          value={settings.book?.file_name || "index.xml"}
+                          onChange={(e) =>
+                            setRoot("book", {
+                              ...settings.book,
+                              file_name: e.target.value,
+                            })
+                          }
+                        >
+                          {selected.files.map((file: string) => (
+                            <option key={file} value={file}>
+                              {file}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    </details>
                     <p>{selected.description}</p>
                     {selected.presets.length > 0 && (
                       <select

@@ -103,3 +103,15 @@ CONFIRM_PURGE=opensiddur-builder-dev CONFIRM_PROJECT_DELETE=opensiddur-builder-d
 ```
 
 Do not point complete-project teardown at a shared/pre-existing project. The two matching confirmations are mandatory, and no teardown is run automatically during deployment.
+
+## Verify the live worker paths
+
+Run opt-in probes against development with the actual Terraform outputs and deployed release ID:
+
+```bash
+uv run python tests/cloud_probe.py --project opensiddur-builder-dev --release RELEASE_ID --api API_URL --preview PREVIEW_URL
+uv run python tests/cloud_probe.py --project opensiddur-builder-dev --release RELEASE_ID --api API_URL --preview PREVIEW_URL --type html
+uv run python tests/cloud_probe.py --project opensiddur-builder-dev --release RELEASE_ID --api API_URL --preview PREVIEW_URL --type pdf
+```
+
+These use the local gcloud operator credentials to enqueue synthetic records, then exercise Cloud Tasks OIDC, API dispatch, the private service/job, Firestore and Storage. They remove their test records/files, preserve truthful global runtime accounting, and never create a real authentication identity or send email. They do **not** replace browser/sign-in acceptance testing, which requires Firebase activation and provider configuration.

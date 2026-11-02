@@ -12,6 +12,7 @@ from opensiddur_infra.config import Config
 from opensiddur_infra.store import MemoryStore
 from opensiddur_infra.worker import execute, preview_app
 from opensiddur_infra.api import create_app
+from opensiddur_infra.processor import Processor
 
 processor = Path(os.environ.get("PROCESSOR_DIR", "/opt/processor"))
 projects = processor / "opensiddur-projects/project"
@@ -62,6 +63,14 @@ store.atomic(
     ),
 )
 config = replace(Config(), release=catalog["release"])
+adapter = Processor(config)
+for project in catalog["projects"]:
+    for preset in project["presets"]:
+        canonical = adapter.validate(preset["settings"])
+        validate_settings(canonical, project_directory=projects)
+        assert canonical == adapter.validate(canonical), (
+            "Settings canonicalization must round-trip"
+        )
 assert preview_app().routes
 assert create_app(config=config, store=store, storage=outputs).routes
 builds = Builds(store, config.release)

@@ -15,7 +15,7 @@ project = sys.argv[1]
 token = subprocess.check_output(
     ["gcloud", "auth", "print-access-token"], text=True
 ).strip()
-headers = {"Authorization": "Bearer " + token}
+headers = {"Authorization": "Bearer " + token, "X-Goog-User-Project": project}
 base = "https://firebasehosting.googleapis.com/v1beta1"
 
 

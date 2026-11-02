@@ -30,13 +30,14 @@ config = {
             {"glob": "**", "path": "/index.html"},
         ],
         "headers": [
+            {"glob": "/share/**", "headers": {"X-Robots-Tag": "noindex, nofollow"}},
             {
                 "glob": "**",
                 "headers": {
                     "Referrer-Policy": "no-referrer",
                     "X-Content-Type-Options": "nosniff",
                 },
-            }
+            },
         ],
     }
 }

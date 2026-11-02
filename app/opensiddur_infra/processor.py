@@ -66,4 +66,4 @@ class Processor:
         result = validate_settings(
             data, project_directory=project_root, resolve_fonts=True
         )
-        return result.model_dump(mode="json", exclude_unset=True)
+        return result.model_dump(mode="json", exclude_unset=True, by_alias=True)
