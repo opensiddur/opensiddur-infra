@@ -1,0 +1,13 @@
+Open Siddur Project logo
+Copyright 2009–2014 Aharon Varady.
+Licensed under the Creative Commons Attribution-ShareAlike 4.0 International license:
+https://creativecommons.org/licenses/by-sa/4.0/
+
+Source (reproduced unchanged, including attribution metadata):
+https://opensiddur.org/wp-content/uploads/2018/09/Open-Siddur-Project-Logo-2016.svg
+
+The logo metadata credits an adaptation of Johannes Itten's Farbkreis (1961):
+https://commons.wikimedia.org/wiki/File:Farbkreis_Itten_1961.svg
+The Hebrew text inside the wheel reads siddur.
+
+This artwork's license is separate from the application's LGPL license.

@@ -221,6 +221,23 @@ class ApiTests(unittest.TestCase):
             404,
         )
 
+    def test_presets_remember_advanced_mode_and_output_choices(self):
+        identifier = str(uuid.uuid4())
+        response = self.client.put(
+            "/api/v1/presets/" + identifier,
+            headers=self.headers,
+            json={"name": "Layout", "settings": {}, "preferences": {"advanced": True, "formats": ["html", "tex"]}},
+        )
+        self.assertEqual(response.status_code, 200)
+        saved = self.client.get("/api/v1/presets", headers=self.headers).json()
+        self.assertEqual(saved[0]["preferences"], {"advanced": True, "formats": ["html", "tex"]})
+        invalid = self.client.put(
+            "/api/v1/presets/" + identifier,
+            headers=self.headers,
+            json={"settings": {}, "preferences": {"advanced": "false"}},
+        )
+        self.assertEqual(invalid.status_code, 422)
+
     def test_server_processing_requires_consent_not_just_a_disabled_button(self):
         self.client.delete("/api/v1/consent", headers=self.headers)
         self.assertEqual(

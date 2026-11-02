@@ -409,6 +409,17 @@ def create_app(
             raise HTTPException(429, "Preset limit reached")
         owned_asset(principal.account_id, data.get("asset"))
         settings = validate(data.get("settings", {}))
+        preferences = data.get("preferences", {})
+        if not isinstance(preferences, dict):
+            raise HTTPException(422, "Preset preferences must be a mapping")
+        advanced = preferences.get("advanced", False)
+        formats = preferences.get("formats", ["pdf", "html"])
+        if (
+            not isinstance(advanced, bool)
+            or not isinstance(formats, list)
+            or any(not isinstance(f, str) or f not in {"pdf", "html", "tex", "xml"} for f in formats)
+        ):
+            raise HTTPException(422, "Invalid preset display or output preferences")
         row = {
             "kind": "preset",
             "id": str(identifier),
@@ -417,6 +428,7 @@ def create_app(
             "settings": settings,
             "release": config.release,
             "asset": data.get("asset"),
+            "preferences": {"advanced": advanced, "formats": list(dict.fromkeys(formats))},
         }
         account_key = f"account:{principal.account_id}"
 

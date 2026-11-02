@@ -17,6 +17,7 @@ import {
 } from "./api";
 import { SchemaField, Sources, Declarations } from "./Settings";
 import { normalizeSettings } from "./settings-data";
+import { Allowance, PublishedPresets, projectLabel } from "./BuilderControls";
 import "./style.css";
 const terminal = new Set([
   "succeeded",
@@ -35,6 +36,10 @@ function App() {
     [message, setMessage] = useState(""),
     [error, setError] = useState(""),
     [tab, setTab] = useState("Sources"),
+    [advanced, setAdvanced] = useState(
+      () => localStorage.getItem("builder-advanced") === "true",
+    ),
+    [publishedPreset, setPublishedPreset] = useState(""),
     [formats, setFormats] = useState(["pdf", "html"]),
     [history, setHistory] = useState<Value[]>([]),
     [presets, setPresets] = useState<Value[]>([]),
@@ -54,6 +59,13 @@ function App() {
     if (typeof value === "function")
       setSettingsState((old: Value) => normalizeSettings(value(old)));
     else setSettingsState(normalizeSettings(value));
+  }
+  useEffect(() => {
+    localStorage.setItem("builder-advanced", String(advanced));
+  }, [advanced]);
+  function changeAdvanced(enabled: boolean) {
+    setAdvanced(enabled);
+    if (!enabled && tab === "Advanced") setTab("Sources");
   }
   function fail(e: unknown) {
     setError(e instanceof Error ? e.message : String(e));
@@ -101,13 +113,25 @@ function App() {
     setYaml(stringify(settings));
   }, [settings]);
   useEffect(() => {
-    if (!user || !history.some((b) => !terminal.has(b.state))) return;
-    const timer = setInterval(
-      () => api("/builds").then(setHistory).catch(fail),
-      10000,
-    );
-    return () => clearInterval(timer);
-  }, [user, history.some((b) => !terminal.has(b.state))]);
+    if (!user) return;
+    let active = true;
+    const timer = setInterval(() => {
+      Promise.all([api("/builds"), api("/account")])
+        .then(([rows, current]) => {
+          if (active) {
+            setHistory(rows);
+            setAccount(current);
+          }
+        })
+        .catch((e) => {
+          if (active) fail(e);
+        });
+    }, 10000);
+    return () => {
+      active = false;
+      clearInterval(timer);
+    };
+  }, [user]);
   const signature = JSON.stringify({ settings, asset });
   useEffect(() => {
     const revision = ++generation.current;
@@ -175,6 +199,7 @@ function App() {
     return () => clearTimeout(timer);
   }, [signature, user?.uid, hasConsent]);
   async function applySettings(value: Value) {
+    setPublishedPreset("");
     if (!value || typeof value !== "object" || Array.isArray(value))
       throw new Error("Settings must be a mapping");
     if (user && hasConsent)
@@ -196,20 +221,27 @@ function App() {
   }
   function choose(id: string) {
     const project = catalog.projects.find((p: Value) => p.id === id);
+    if (!project) {
+      setSettings({});
+      setPublishedPreset("");
+      setAsset(null);
+      return;
+    }
     const preset = project.presets?.[0];
     setSettings(
-      preset?.settings || {
-        book: { project: id, file_name: "index.xml" },
-        formats: ["pdf", "html"],
-      },
+      preset?.settings || { book: { project: id, file_name: "index.xml" } },
     );
+    setPublishedPreset(preset ? "0" : "");
     setAsset(null);
   }
   async function build(type = "full") {
     const row = await api("/builds", "POST", {
       release: catalog.release,
       settings,
-      formats: type === "pdf" ? ["pdf"] : formats,
+      formats:
+        type === "pdf"
+          ? ["pdf"]
+          : formats.filter((f) => advanced || ["pdf", "html"].includes(f)),
       type,
       asset,
       idempotency_key: crypto.randomUUID(),
@@ -229,6 +261,7 @@ function App() {
       name,
       settings,
       asset,
+      preferences: { advanced, formats },
     });
     setPresets(await api("/presets"));
     setMessage("Preset saved until you delete it.");
@@ -254,8 +287,19 @@ function App() {
   return (
     <>
       <header>
-        <a href="/" className="brand">
-          OPEN SIDDUR <small>Make room for your tradition.</small>
+        <a href="https://opensiddur.org/" className="brand">
+          <img
+            src="/opensiddur-logo.svg"
+            alt="The Open Siddur Project logo"
+            width="76"
+            height="76"
+          />
+          <span>
+            the Open Siddur Project{" "}
+            <span lang="he" dir="rtl">
+              פְּרוֹיֶקְט הַסִּדּוּר הַפָּתוּחַ
+            </span>
+          </span>
         </a>
         <nav>
           <a href="/">Builder</a>
@@ -281,6 +325,17 @@ function App() {
             <a href="https://github.com/opensiddur/opensiddur-infra">
               Source code
             </a>
+          </p>
+          <p>
+            Logo: Aharon Varady, © 2009–2014, from{" "}
+            <a href="https://opensiddur.org/wp-content/uploads/2018/09/Open-Siddur-Project-Logo-2016.svg">
+              the Open Siddur Project
+            </a>
+            , unchanged, under{" "}
+            <a href="https://creativecommons.org/licenses/by-sa/4.0/">
+              CC BY-SA 4.0
+            </a>
+            .
           </p>
           {notice ? (
             <>
@@ -330,26 +385,36 @@ function App() {
       ) : (
         <>
           <section className="intro">
-            <p className="eyebrow">A BOOK OF YOUR OWN</p>
-            <h1>
-              Your texts.
-              <br />
-              <em>Your siddur.</em>
-            </h1>
+            <h1>Siddur builder</h1>
             <p>
-              Choose an edition, bring together your translations and notes, and
-              create a book that follows your customs.
+              Select texts, translations and annotations from the{" "}
+              <a href="https://opensiddur.org/">Open Siddur Project</a> to
+              compile a prayerbook. Choose your customs and layout, then
+              download your book.
             </p>
-            <span className="badge">PDF · Offline HTML · Open source</span>
           </section>
           <main className="layout">
+            <div className="builder-toolbar">
+              <label className="check">
+                <input
+                  type="checkbox"
+                  checked={advanced}
+                  onChange={(e) => changeAdvanced(e.target.checked)}
+                />
+                Show advanced settings
+              </label>
+              <span className="hint">
+                Includes starting files, the full settings editor, YAML and
+                TeX/XML output. Saved with your presets.
+              </span>
+            </div>
             <div className="configuration">
-              <section className="card">
+              <section className="card project">
                 <label className="eyebrow" htmlFor="project">
                   01 · CHOOSE YOUR STARTING TEXT
                 </label>
                 <input
-                  placeholder="Search titles or project names"
+                  placeholder="Search titles or editions"
                   value={filter}
                   onChange={(e) => setFilter(e.target.value)}
                 />
@@ -359,7 +424,7 @@ function App() {
                   value={settings.book?.project || ""}
                   onChange={(e) => choose(e.target.value)}
                 >
-                  <option value="">Choose a project…</option>
+                  <option value="">Choose a title…</option>
                   {projects
                     .filter((p: Value) =>
                       (p.title + " " + p.id)
@@ -368,65 +433,65 @@ function App() {
                     )
                     .map((p: Value) => (
                       <option value={p.id} key={p.id}>
-                        {p.title} · {p.language}
+                        {projectLabel(p)}
                       </option>
                     ))}
                 </select>
                 {selected && (
                   <>
-                    <p className="hint">{selected.id}</p>
-                    <details>
-                      <summary>Advanced entry point</summary>
-                      <label>
-                        Starting file
-                        <select
-                          value={settings.book?.file_name || "index.xml"}
-                          onChange={(e) =>
-                            setRoot("book", {
-                              ...settings.book,
-                              file_name: e.target.value,
-                            })
-                          }
-                        >
-                          {selected.files.map((file: string) => (
-                            <option key={file} value={file}>
-                              {file}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    </details>
+                    <p className="selected-title">{projectLabel(selected)}</p>
+                    {advanced && (
+                      <details>
+                        <summary>Starting file</summary>
+                        <label>
+                          Starting file
+                          <select
+                            value={settings.book?.file_name || "index.xml"}
+                            onChange={(e) =>
+                              setRoot("book", {
+                                ...settings.book,
+                                file_name: e.target.value,
+                              })
+                            }
+                          >
+                            {selected.files.map((file: string) => (
+                              <option key={file} value={file}>
+                                {file}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </details>
+                    )}
                     <p>{selected.description}</p>
                     {selected.presets.length > 0 && (
-                      <select
-                        aria-label="Starting preset"
-                        value=""
-                        onChange={(e) =>
-                          setSettings(
-                            selected.presets[Number(e.target.value)].settings,
-                          )
-                        }
-                      >
-                        <option value="">Start from a published preset…</option>
-                        {selected.presets.map((p: Value, i: number) => (
-                          <option key={p.name} value={i}>
-                            {p.name}
-                          </option>
-                        ))}
-                      </select>
+                      <PublishedPresets
+                        presets={selected.presets}
+                        value={publishedPreset}
+                        onChange={(value) => {
+                          const preset = selected.presets[Number(value)];
+                          if (!preset) return;
+                          setSettings(preset.settings);
+                          setPublishedPreset(value);
+                          setAsset(null);
+                          setMessage(
+                            `Loaded ${preset.name.replaceAll("_", " ")} preset.`,
+                          );
+                        }}
+                      />
                     )}
                   </>
                 )}
               </section>
-              <section className="card">
-                <p className="eyebrow">02 · MAKE IT YOURS</p>
+              <section className="card settings">
+                <h2>Settings</h2>
                 <div className="tabs" role="tablist">
                   {[
                     "Sources",
                     "Customs",
                     "Typography",
                     "Distribution",
-                    "Advanced",
+                    ...(advanced ? ["Advanced"] : []),
                   ].map((t) => (
                     <button
                       role="tab"
@@ -438,6 +503,18 @@ function App() {
                     </button>
                   ))}
                 </div>
+                {tab === "Typography" && (
+                  <p className="hint">
+                    Choose fonts, text sizes and page layout. Leave a choice
+                    unchecked to use its default.
+                  </p>
+                )}
+                {tab === "Distribution" && (
+                  <p className="hint">
+                    Choose how attribution and licensing notices appear in your
+                    book, and optionally add a logo.
+                  </p>
+                )}
                 {tab === "Sources" && (
                   <>
                     <Sources
@@ -494,7 +571,7 @@ function App() {
                     onChange={(v) => setRoot("declarations", v)}
                   />
                 )}
-                {tab === "Typography" && (
+                {tab === "Typography" && advanced && (
                   <details>
                     <summary>Installed font families</summary>
                     <p className="hint">{catalog?.fonts?.join(" · ")}</p>
@@ -504,6 +581,7 @@ function App() {
                   guided.map((key) => (
                     <SchemaField
                       key={key}
+                      advanced={advanced}
                       label={key}
                       schema={schema.properties[key]}
                       root={schema}
@@ -596,14 +674,16 @@ function App() {
                   </>
                 )}
                 <div className="row">
-                  <button
-                    disabled={!settings.book}
-                    onClick={() =>
-                      localFile("settings.yaml", stringify(settings))
-                    }
-                  >
-                    Download settings
-                  </button>
+                  {advanced && (
+                    <button
+                      disabled={!settings.book}
+                      onClick={() =>
+                        localFile("settings.yaml", stringify(settings))
+                      }
+                    >
+                      Download settings YAML
+                    </button>
+                  )}
                   <button
                     disabled={!user || !hasConsent || !settings.book}
                     onClick={() => action(save)}
@@ -611,6 +691,31 @@ function App() {
                     Save preset
                   </button>
                 </div>
+              </section>
+              <section className="card preview">
+                <h2>Preview your settings</h2>
+                <p className="hint">
+                  This short Psalm 23 sample updates as you edit. If your chosen
+                  sources do not contain the passage, the sample uses a Hebrew
+                  Bible text. Title pages and some notes appear only in the full
+                  book.
+                </p>
+                <p role="status">{previewStatus}</p>
+                {preview ? (
+                  <iframe
+                    title="Settings demonstration"
+                    sandbox=""
+                    srcDoc={preview}
+                  />
+                ) : (
+                  <div className="empty">Your sample will appear here.</div>
+                )}
+                <button
+                  disabled={!user || !hasConsent || !settings.book}
+                  onClick={() => action(() => build("pdf"))}
+                >
+                  Typeset a PDF sample
+                </button>
               </section>
               <section className="card" id="account">
                 <p className="eyebrow">YOUR ACCOUNT</p>
@@ -696,6 +801,11 @@ function App() {
                             onClick={() => {
                               setSettings(p.settings);
                               setAsset(p.asset);
+                              setPublishedPreset("");
+                              changeAdvanced(p.preferences?.advanced === true);
+                              setFormats(
+                                p.preferences?.formats || ["pdf", "html"],
+                              );
                             }}
                           >
                             {p.name}
@@ -788,35 +898,8 @@ function App() {
               </section>
             </div>
             <aside>
-              <section className="card preview">
-                <p className="eyebrow">A SMALL LOOK INSIDE</p>
-                <h2>Try your settings</h2>
-                <p className="hint">
-                  Fixed Psalm 23 demonstration, with a WLC fallback when
-                  selected text sources have no coverage. Front matter is
-                  omitted for the sample. Some choices, including annotations
-                  and electronic behavior, may not appear here.
-                </p>
-                <p role="status">{previewStatus}</p>
-                {preview ? (
-                  <iframe
-                    title="Settings demonstration"
-                    sandbox=""
-                    srcDoc={preview}
-                  />
-                ) : (
-                  <div className="empty">Your sample will appear here.</div>
-                )}
-                <button
-                  disabled={!user || !hasConsent || !settings.book}
-                  onClick={() => action(() => build("pdf"))}
-                >
-                  Typeset a PDF sample
-                </button>
-              </section>
               <section className="card">
-                <p className="eyebrow">03 · CREATE YOUR BOOK</p>
-                <h2>Ready to make it yours?</h2>
+                <h2>Create your book</h2>
                 {["pdf", "html"].map((f) => (
                   <label className="check" key={f}>
                     <input
@@ -833,49 +916,47 @@ function App() {
                     {f === "pdf" ? "Printable PDF" : "Offline HTML book"}
                   </label>
                 ))}
-                <details>
-                  <summary>Advanced output formats</summary>
-                  {["tex", "xml"].map((f) => (
-                    <label className="check" key={f}>
-                      <input
-                        type="checkbox"
-                        checked={formats.includes(f)}
-                        onChange={(e) =>
-                          setFormats(
-                            e.target.checked
-                              ? [...formats, f]
-                              : formats.filter((x) => x !== f),
-                          )
-                        }
-                      />
-                      {f.toUpperCase()}
-                    </label>
-                  ))}
-                </details>
-                <p className="hint">
-                  Settings and version metadata are included. Files expire 30
-                  days after completion. Full books may take hours. Allowance: 5
-                  builds and 3 runtime-hours per UTC day, one outstanding full
-                  build.
-                </p>
-                {account?.allowances && (
-                  <p className="hint">
-                    Remaining today, after reservations:{" "}
-                    {account.allowances.builds_remaining} builds and{" "}
-                    {Math.floor(
-                      account.allowances.build_seconds_remaining / 60,
-                    )}{" "}
-                    runtime minutes.
-                  </p>
+                {advanced && (
+                  <div className="advanced-formats">
+                    <h3>Additional output formats</h3>
+                    {["tex", "xml"].map((f) => (
+                      <label className="check" key={f}>
+                        <input
+                          type="checkbox"
+                          checked={formats.includes(f)}
+                          onChange={(e) =>
+                            setFormats(
+                              e.target.checked
+                                ? [...formats, f]
+                                : formats.filter((x) => x !== f),
+                            )
+                          }
+                        />
+                        {f.toUpperCase()}
+                      </label>
+                    ))}
+                  </div>
                 )}
+                <p className="hint">
+                  Your settings are included with your downloads. Files are
+                  available for 30 days. A full book may take several hours; you
+                  can leave this page and return later. Compile one full book at
+                  a time.
+                </p>
+                <Allowance allowances={account?.allowances} />
                 <button
                   className="primary"
                   disabled={
-                    !user || !hasConsent || !settings.book || !formats.length
+                    !user ||
+                    !hasConsent ||
+                    !settings.book ||
+                    !formats.some(
+                      (f) => advanced || ["pdf", "html"].includes(f),
+                    )
                   }
                   onClick={() => action(() => build())}
                 >
-                  Create my siddur →
+                  Create siddur
                 </button>
               </section>
             </aside>
@@ -1002,7 +1083,7 @@ function App() {
         </div>
       )}
       <footer>
-        <span>Open Siddur Project · A book you can carry forward.</span>
+        <a href="https://opensiddur.org/">the Open Siddur Project</a>
         <a href="/privacy">Privacy</a>
         <a href="/licenses">Software licenses & notices</a>
         <a href="https://github.com/opensiddur/opensiddur-infra">Source</a>

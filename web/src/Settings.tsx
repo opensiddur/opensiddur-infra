@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { Value } from "./api";
+import { Help, projectLabel } from "./BuilderControls";
 export function resolve(schema: Value, root: Value): Value {
   return schema?.$ref
     ? root.$defs[schema.$ref.split("/").at(-1)]
@@ -11,12 +12,14 @@ export function SchemaField({
   value,
   onChange,
   label,
+  advanced = true,
 }: {
   schema: Value;
   root: Value;
   value: Value;
   onChange: (v: Value) => void;
   label: string;
+  advanced?: boolean;
 }) {
   const [newKey, setNewKey] = useState("");
   let s = resolve(schema, root);
@@ -95,6 +98,7 @@ export function SchemaField({
         {Object.entries(s.properties || {}).map(([key, child]) => (
           <SchemaField
             key={key}
+            advanced={advanced}
             schema={child}
             root={root}
             value={value?.[key]}
@@ -104,30 +108,33 @@ export function SchemaField({
         ))}
         {s.additionalProperties && (
           <>
-            <div className="row">
-              <input
-                aria-label="Setting name"
-                placeholder="Feature / property name"
-                value={newKey}
-                onChange={(e) => setNewKey(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  if (newKey.trim()) {
-                    set(newKey.trim(), null);
-                    setNewKey("");
-                  }
-                }}
-              >
-                Add
-              </button>
-            </div>
+            {advanced && (
+              <div className="row">
+                <input
+                  aria-label="Setting name"
+                  placeholder="Feature / property name"
+                  value={newKey}
+                  onChange={(e) => setNewKey(e.target.value)}
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (newKey.trim()) {
+                      set(newKey.trim(), null);
+                      setNewKey("");
+                    }
+                  }}
+                >
+                  Add
+                </button>
+              </div>
+            )}
             {Object.keys(value || {})
               .filter((k) => !s.properties?.[k])
               .map((k) => (
                 <div key={k}>
                   <SchemaField
+                    advanced={advanced}
                     schema={
                       typeof s.additionalProperties === "object"
                         ? s.additionalProperties
@@ -151,6 +158,7 @@ export function SchemaField({
         {(value || []).map((v: Value, i: number) => (
           <div key={i} className="row">
             <SchemaField
+              advanced={advanced}
               schema={s.items || {}}
               root={root}
               value={v}
@@ -234,7 +242,7 @@ export function SchemaField({
             <button onClick={() => onChange(null)}>Undefined</button>
           )}
       </div>
-      {s.description && <p className="hint">{s.description}</p>}
+      {advanced && s.description && <p className="hint">{s.description}</p>}
       {value !== undefined && editor}
     </div>
   );
@@ -253,18 +261,32 @@ export function Sources({
   ordered?: boolean;
 }) {
   const [filter, setFilter] = useState("");
+  const List = ordered ? "ol" : "ul";
+  const help: Record<string, string> = {
+    "Text priorities":
+      "When a passage is available in more than one source, the compiler uses the first source in this list that contains it. Put your preferred edition first and other editions below it as fallbacks. Use the arrows to change the order.",
+    "Translation priorities":
+      "The compiler looks for a translation to place alongside each passage, trying these sources from top to bottom. The first matching translation is used. Adding a translation does not guarantee that it covers every passage.",
+    "Instruction priorities":
+      "Instructions explain how or when to recite a passage. When several sources provide instructions for the same passage, the compiler tries the sources in this order and uses the first match.",
+    "Annotation sources":
+      "Annotations include commentary, editorial notes and other explanations. All matching annotations from the sources you select are included; this list has no priority order. A source may not have notes for every passage.",
+  };
   return (
     <section>
-      <h3>{label}</h3>
-      <ol>
+      <div className="source-heading">
+        <h3>{label}</h3>
+        <Help label={label}>{help[label]}</Help>
+      </div>
+      <List>
         {value.map((id, i) => (
           <li key={id}>
-            <span>{projects.find((p) => p.id === id)?.title || id}</span>
+            <span>{projectLabel(projects.find((p) => p.id === id))}</span>
             <div>
               {ordered && (
                 <>
                   <button
-                    aria-label={`Move ${id} earlier`}
+                    aria-label={`Move ${projectLabel(projects.find((p) => p.id === id))} earlier`}
                     disabled={!i}
                     onClick={() => {
                       const next = [...value];
@@ -275,7 +297,7 @@ export function Sources({
                     ↑
                   </button>
                   <button
-                    aria-label={`Move ${id} later`}
+                    aria-label={`Move ${projectLabel(projects.find((p) => p.id === id))} later`}
                     disabled={i === value.length - 1}
                     onClick={() => {
                       const next = [...value];
@@ -293,7 +315,7 @@ export function Sources({
             </div>
           </li>
         ))}
-      </ol>
+      </List>
       <input
         placeholder="Find a source…"
         aria-label={`Find ${label}`}
@@ -303,7 +325,9 @@ export function Sources({
       <select
         aria-label={`Add ${label}`}
         value=""
-        onChange={(e) => onChange([...value, e.target.value])}
+        onChange={(e) => {
+          if (e.target.value) onChange([...value, e.target.value]);
+        }}
       >
         <option value="">Add a source…</option>
         {projects
@@ -314,7 +338,7 @@ export function Sources({
           )
           .map((p) => (
             <option value={p.id} key={p.id}>
-              {p.title} · {p.language}
+              {projectLabel(p)}
             </option>
           ))}
       </select>

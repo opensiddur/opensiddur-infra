@@ -68,6 +68,13 @@ def generate(bundle, processor):
                 "text": (root / "LICENSE").read_text(),
             }
         )
+    components.append({
+        "name": "Open Siddur Project logo",
+        "version": "2016 SVG, unchanged",
+        "license": "CC-BY-SA-4.0",
+        "source": "https://opensiddur.org/wp-content/uploads/2018/09/Open-Siddur-Project-Logo-2016.svg",
+        "text": Path("web/public/brand-notice.txt").read_text(),
+    })
     frontend = Path(".bundle/frontend-notices.json")
     if frontend.exists():
         components.extend(json.loads(frontend.read_text()))

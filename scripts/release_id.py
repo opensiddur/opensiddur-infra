@@ -5,7 +5,7 @@ from pathlib import Path
 
 
 def release_identity():
-    roots = [Path("app"), Path("scripts"), Path("web/src")]
+    roots = [Path("app"), Path("scripts"), Path("web/src"), Path("web/public")]
     files = [
         Path(x)
         for x in (
@@ -19,7 +19,7 @@ def release_identity():
         p
         for root in roots
         for p in root.rglob("*")
-        if p.suffix in {".py", ".sh", ".mjs", ".ts", ".tsx", ".css"}
+        if p.suffix in {".py", ".sh", ".mjs", ".ts", ".tsx", ".css", ".svg", ".txt"}
     ]
     digest = hashlib.sha256()
     for path in sorted(files):
