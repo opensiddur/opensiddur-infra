@@ -9,6 +9,8 @@ The repository and local worktrees are created. The implementation is in [draft 
 - The real development stack generated PDF, HTML, TeX, print/electronic XML, settings, metadata, notices and ZIP through Cloud Tasks OIDC, the API, Cloud Run Jobs, Firestore and private Storage. Private HTML preview dispatch passed separately.
 - API-service-account IAM signing and an actual signed-URL Storage download passed. Synthetic account records and artifacts were removed.
 
+The final [Cloud Build smoke run](https://console.cloud.google.com/cloud-build/builds/ac2e73dc-440f-4e52-89fd-cd2ff2b0f2e1?project=817628492067) passed for release `edb5a9dd7f2a8184fe35` (implementation source `fb1279d`). The release is deployed in development. Post-deployment full-build and private PDF-preview probes passed, including actual artifact reads and removal of synthetic accounts/files. Public health/catalog requests returned 200; unauthenticated account, build and validation requests returned 401.
+
 Container verification runs the actual unprivileged worker with a private writable SQLite database. It validates every bundled preset, tests canonical settings round trips, constructs both ASGI applications, and generates all output formats before permitting image promotion.
 
 ## Current launch boundary
