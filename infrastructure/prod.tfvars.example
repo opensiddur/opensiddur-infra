@@ -1,0 +1,6 @@
+project_id = "opensiddur-builder-prod"
+environment = "prod"
+region = "us-central1"
+submissions_enabled = false
+require_app_check = true
+admin_emails = []

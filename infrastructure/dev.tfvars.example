@@ -1,0 +1,6 @@
+project_id = "opensiddur-builder-dev"
+environment = "dev"
+region = "us-central1"
+submissions_enabled = false
+require_app_check = false
+admin_emails = ["efraim.feinstein@gmail.com"]

@@ -1,0 +1,6 @@
+{
+  "processor": "2788ddbe1570834b73422ad71f64c72ea532c777",
+  "projects": "2885a720b6065611145804d2141b34c2471ed7a9",
+  "channel": "bootstrap-pinned-snapshot",
+  "note": "Projects has no published release yet; bootstrap from these exact reviewed commits. Subsequent promotions use compatible releases."
+}

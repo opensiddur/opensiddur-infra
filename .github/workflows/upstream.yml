@@ -1,0 +1,21 @@
+name: Check upstream releases
+on:
+  schedule: [{cron: '17 6 * * *'}]
+  workflow_dispatch:
+permissions:
+  contents: write
+  pull-requests: write
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check released snapshots
+        env: {GH_TOKEN: '${{ github.token }}'}
+        run: python scripts/check_releases.py
+      - uses: peter-evans/create-pull-request@v7
+        with:
+          branch: chore/upstream-releases
+          title: Update upstream processor and project releases
+          body: Published upstream versions; production promotion requires successful catalog, preset, and sample export checks.
+          commit-message: Pin latest upstream releases
