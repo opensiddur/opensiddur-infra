@@ -275,3 +275,27 @@ describe("typed settings in the complete builder", () => {
     });
   });
 });
+
+it("explains missing settings and sends Build and preview to account setup when signed out", async () => {
+  render(<App />);
+  const title = (await screen.findByRole("combobox", { name: "Choose your starting text" })) as HTMLInputElement;
+  await waitFor(() => expect(title.disabled).toBe(false));
+  expect(screen.getByRole("button", { name: "Build" }).hasAttribute("disabled")).toBe(true);
+  expect(screen.getByText("Choose a starting text or load settings first.")).toBeTruthy();
+  fireEvent.focus(title);
+  fireEvent.change(title, { target: { value: "Example Hebrew" } });
+  fireEvent.keyDown(title, { key: "Enter" });
+  const save = screen.getByRole("button", { name: "Save settings YAML" });
+  expect(save.hasAttribute("disabled")).toBe(false);
+  expect(screen.queryByRole("tab", { name: "Advanced" })).toBeNull();
+  const build = screen.getByRole("button", { name: "Build" });
+  expect(build.hasAttribute("disabled")).toBe(false);
+  fireEvent.click(build);
+  expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("link", { name: "← Return to the builder" }));
+  const preview = screen.getByRole("button", { name: "Update print sample" });
+  expect(preview.hasAttribute("disabled")).toBe(false);
+  fireEvent.click(preview);
+  expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
+  expect(vi.mocked(api).mock.calls.some(([path, method]) => path === "/builds" && method === "POST")).toBe(false);
+});

@@ -68,6 +68,9 @@ export function App() {
   const [currentBuild, setCurrentBuild] = useState<Value>();
   const [buildError, setBuildError] = useState("");
   const [building, setBuilding] = useState(false);
+  const [loadedPreset, setLoadedPreset] = useState("");
+  const [settingsEpoch, setSettingsEpoch] = useState(0);
+  const [loadingSettings, setLoadingSettings] = useState(false);
   const [savingPreset, setSavingPreset] = useState(false);
   const [renamingPreset, setRenamingPreset] = useState<string | null>(null);
   const [pendingFields, setPendingFields] = useState<Set<string>>(new Set());
@@ -130,6 +133,7 @@ export function App() {
     return () => { active = false; clearTimeout(timer); };
   }, [path, user?.uid]);
   function setSettings(value: Value | ((old: Value) => Value)) {
+    setLoadedPreset("");
     if (typeof value === "function")
       setSettingsState((old: Value) => normalizeSettings(value(old)));
     else setSettingsState(normalizeSettings(value));
@@ -287,18 +291,50 @@ export function App() {
     );
     return () => clearTimeout(timer);
   }, [signature, previewMode, previewRevision, user?.uid, hasConsent, hasPendingSettings]);
-  async function applySettings(value: Value) {
-    setPublishedPreset("");
+  async function prepareSettings(value: Value) {
     if (!value || typeof value !== "object" || Array.isArray(value))
       throw new Error("Settings must be a mapping");
-    if (user && hasConsent)
-      setSettings((await api("/validate", "POST", value)).settings);
-    else {
-      setSettings(value);
-      setMessage(
-        "Settings loaded locally. Full validation runs after sign-in and consent.",
-      );
-    }
+    const normalized = normalizeSettings(value);
+    return user && hasConsent
+      ? (await api("/validate", "POST", normalized)).settings
+      : normalized;
+  }
+  function replaceSettings(value: Value) {
+    setSettings(value);
+    setPublishedPreset("");
+    setPendingFields(new Set());
+    setSettingsEpoch((old) => old + 1);
+    setSavingPreset(false);
+  }
+  async function applySettings(value: Value) {
+    const next = await prepareSettings(value);
+    replaceSettings(next);
+    setAsset(null);
+    setMessage(user && hasConsent
+      ? "Settings loaded."
+      : "Settings loaded locally. Full validation runs after sign-in and consent.");
+  }
+  async function loadPreset(preset: Value) {
+    setLoadingSettings(true);
+    try {
+      const next = await prepareSettings(preset.settings);
+      replaceSettings(next);
+      setAsset(preset.asset || null);
+      changeAdvanced(preset.preferences?.advanced === true);
+      setFormats(preset.preferences?.formats || ["pdf", "html"]);
+      setLoadedPreset(preset.id);
+      setTab("Sources");
+      setMessage(`Loaded ${preset.name}.`);
+      navigate("/");
+    } finally { setLoadingSettings(false); }
+  }
+  async function importSettings(file: File) {
+    setLoadingSettings(true);
+    try {
+      if (file.size > 262144) throw new Error("Choose a settings YAML file smaller than 256 KiB.");
+      await applySettings(parse(await file.text()));
+      setTab("Sources");
+    } finally { setLoadingSettings(false); }
   }
   function setRoot(key: string, value: Value) {
     setSettings((old: Value) => {
@@ -311,13 +347,13 @@ export function App() {
   function choose(id: string) {
     const project = catalog.projects.find((p: Value) => p.id === id);
     if (!project) {
-      setSettings({});
+      replaceSettings({});
       setPublishedPreset("");
       setAsset(null);
       return;
     }
     const preset = project.presets?.[0];
-    setSettings(
+    replaceSettings(
       preset?.settings || { book: { project: id, file_name: "index.xml" } },
     );
     setPublishedPreset(preset ? "0" : "");
@@ -359,6 +395,12 @@ export function App() {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  const previewBlocker = loadingSettings ? "Wait for settings to finish loading."
+    : !settings.book ? "Choose a starting text or load settings first."
+    : hasPendingSettings ? "Complete or cancel unfinished settings first."
+    : "";
+  const buildBlocker = previewBlocker || (!formats.some((format) => advanced || ["pdf", "html"].includes(format))
+      ? "Select at least one output format before building." : "");
   const fullHistory = history.filter((row) => row.type === "full");
   const projects = catalog?.projects || [],
     selected = projects.find((p: Value) => p.id === settings.book?.project);
@@ -448,14 +490,8 @@ export function App() {
             {presets.map((p) => (
               <div className="row" key={p.id}>
                 <button
-                  onClick={() => {
-                    setSettings(p.settings);
-                    setAsset(p.asset);
-                    setPublishedPreset("");
-                    changeAdvanced(p.preferences?.advanced === true);
-                    setFormats(p.preferences?.formats || ["pdf", "html"]);
-                    navigate("/");
-                  }}
+                  onClick={() => action(() => loadPreset(p))}
+                  disabled={loadingSettings}
                 >
                   {p.name}
                 </button>
@@ -874,6 +910,7 @@ export function App() {
               </span>
             </div>
             <div className="configuration">
+
               <section className="card project">
                 <SearchSelect
                   id="project"
@@ -924,7 +961,7 @@ export function App() {
                         onChange={(value) => {
                           const preset = selected.presets[Number(value)];
                           if (!preset) return;
-                          setSettings(preset.settings);
+                          replaceSettings(preset.settings);
                           setPublishedPreset(value);
                           setAsset(null);
                           setMessage(
@@ -936,8 +973,36 @@ export function App() {
                   </>
                 )}
               </section>
-              <section className="card settings">
+              <section className="card settings" key={settingsEpoch}>
                 <h2>Settings</h2>
+              <div className="load-settings">
+                <h3>Load settings</h3>
+                {user ? presets.length > 0 ? (
+                  <SearchSelect
+                    label="Load a saved preset"
+                    options={presets.map((preset) => ({ value: preset.id, label: preset.name }))}
+                    value={loadedPreset}
+                    disabled={loadingSettings}
+                    onSelect={(id) => {
+                      const preset = presets.find((item) => item.id === id);
+                      if (preset) action(() => loadPreset(preset));
+                    }}
+                  />
+                ) : <p className="hint">Your saved presets will appear here.</p>
+                  : <p><a href="/#account" onClick={openAccount}>Sign in to load a saved preset.</a></p>}
+                <label>
+                  Upload settings YAML
+                  <input type="file" accept=".yaml,.yml,application/yaml,text/yaml"
+                    disabled={loadingSettings}
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0];
+                      event.currentTarget.value = "";
+                      if (file) action(() => importSettings(file));
+                    }} />
+                </label>
+                <p className="hint">Load a preset or a YAML file to replace the current settings, then continue editing below.</p>
+                {loadingSettings && <p role="status">Loading settings…</p>}
+              </div>
                 {hasPendingSettings && (
                   <p role="status" className="hint">
                     Complete or cancel unfinished settings before previewing,
@@ -1120,39 +1185,25 @@ export function App() {
                     >
                       Apply YAML
                     </button>
-                    <label>
-                      Import YAML
-                      <input
-                        type="file"
-                        accept=".yaml,.yml"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f)
-                            action(async () => {
-                              await applySettings(parse(await f.text()));
-                            });
-                        }}
-                      />
-                    </label>
+
                   </>
                 )}
                 <div className="row">
-                  {advanced && (
                     <button
-                      disabled={!settings.book}
+                      disabled={!settings.book || hasPendingSettings || loadingSettings}
                       onClick={() =>
                         localFile("settings.yaml", stringify(settings))
                       }
                     >
-                      Download settings YAML
+                      Save settings YAML
                     </button>
-                  )}
+
                   <button
                     disabled={
                       !user ||
                       !hasConsent ||
                       !settings.book ||
-                      hasPendingSettings
+                      hasPendingSettings || loadingSettings
                     }
                     onClick={() => setSavingPreset(true)}
                   >
@@ -1161,7 +1212,7 @@ export function App() {
                 </div>
                 {savingPreset && (
                   <PresetNameForm onSave={save} onCancel={() => setSavingPreset(false)}
-                    disabled={!user || !hasConsent || !settings.book || hasPendingSettings} />
+                    disabled={!user || !hasConsent || !settings.book || hasPendingSettings || loadingSettings} />
                 )}
               </section>
               <section className="card output">
@@ -1226,20 +1277,16 @@ export function App() {
                 )}
                 <button
                   className="primary"
-                  disabled={
-                    building ||
-                    !user ||
-                    !hasConsent ||
-                    !settings.book ||
-                    hasPendingSettings ||
-                    !formats.some(
-                      (f) => advanced || ["pdf", "html"].includes(f),
-                    )
-                  }
-                  onClick={() => action(() => build())}
+                  disabled={building || !!buildBlocker}
+                  aria-describedby={buildBlocker ? "build-requirement" : undefined}
+                  onClick={() => {
+                    if (!user || !hasConsent) openAccount();
+                    else action(() => build());
+                  }}
                 >
                   {building ? "Starting build…" : "Build"}
                 </button>
+                {buildBlocker && <p id="build-requirement" role="status" className="hint">{buildBlocker}</p>}
               </section>
 
               <section className="card preview">
@@ -1265,7 +1312,7 @@ export function App() {
                   Typesetting takes longer than text preview.
 
                 </p>}
-                <p role="status">
+                <p role="status" id="preview-requirement">
                   {!user ? (
                     <a href="/#account" onClick={openAccount}>
                       Sign in to see a sample
@@ -1274,8 +1321,8 @@ export function App() {
                     <a href="/#account" onClick={openAccount}>
                       Review processing consent in your account to preview.
                     </a>
-                  ) : hasPendingSettings ? (
-                    "Complete your unfinished settings to update the sample."
+                  ) : previewBlocker ? (
+                    previewBlocker
                   ) : (
                     previewStatus
                   )}
@@ -1300,10 +1347,12 @@ export function App() {
                   <div className="empty">Your sample will appear here.</div>
                 )}
                 <button
-                  disabled={
-                    !user || !hasConsent || !settings.book || hasPendingSettings
-                  }
-                  onClick={() => { setPreviewMode("pdf"); refreshPreview((n) => n + 1); }}
+                  disabled={!!previewBlocker}
+                  aria-describedby="preview-requirement"
+                  onClick={() => {
+                    if (!user || !hasConsent) openAccount();
+                    else { setPreviewMode("pdf"); refreshPreview((n) => n + 1); }
+                  }}
                 >
                   Update print sample
                 </button>

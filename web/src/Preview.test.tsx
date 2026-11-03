@@ -4,6 +4,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, act, waitFor } from "@testing-library/react";
 import { App } from "./App";
 import { api } from "./api";
+import { parse } from "yaml";
 
 vi.mock("firebase/auth", () => ({
   onAuthStateChanged: (_: unknown, callback: Function) => {
@@ -156,4 +157,72 @@ it("opens the submitted full build and polls through completion to downloads", a
   expect(screen.getByRole("button", { name: "book.pdf" })).toBeTruthy();
   fireEvent.click(screen.getByRole("link", { name: "Builder" }));
   expect((screen.getByRole("combobox", { name: "Choose your starting text" }) as HTMLInputElement).value).toBe("Sample · Hebrew");
+});
+
+it("loads saved presets and YAML files from Settings, preserving values and rejecting invalid imports", async () => {
+  vi.mocked(api).mockClear();
+  Element.prototype.scrollIntoView = vi.fn();
+  window.history.replaceState({}, "", "/");
+  const preset = { id: "saved", name: "My saved settings", asset: "owned-logo",
+    preferences: { advanced: true, formats: ["pdf"] },
+    settings: { book: { project: "sample", file_name: "index.xml" }, typography: { parallel: { layout: "pages" } }, declarations: { custom: { enabled: false, count: 0 } } },
+  };
+  vi.mocked(api).mockImplementation(async (path, method, data) => {
+    if (path === "/catalog") return { release: "synthetic", features: {}, projects: [
+      { id: "sample", title: "Sample", language: "he", files: ["index.xml"], presets: [] },
+      { id: "other", title: "Other", language: "en", files: ["index.xml"], presets: [] },
+    ] };
+    if (path === "/schema") return { properties: { typography: { type: "object", properties: { caption: { type: "string", minLength: 2 } } } } };
+    if (path === "/account") return { consent: { version: "test" }, consent_version: "test" };
+    if (path === "/presets") return [preset];
+    if (path === "/validate") return { settings: data };
+    return [];
+  });
+  await act(async () => { render(<App />); });
+  let load = screen.getByRole("combobox", { name: "Load a saved preset" });
+  expect(load.closest("section")?.querySelector("h2")?.textContent).toBe("Settings");
+  expect(load.closest("section")?.querySelector(".load-settings")?.nextElementSibling?.getAttribute("role")).toBe("tablist");
+  const starting = screen.getByRole("combobox", { name: "Choose your starting text" });
+  fireEvent.focus(starting);
+  fireEvent.change(starting, { target: { value: "Other" } });
+  fireEvent.keyDown(starting, { key: "Enter" });
+  fireEvent.click(screen.getByRole("tab", { name: "Typography" }));
+  fireEvent.click(screen.getByText(/^typography/i, { selector: "summary" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "caption" }), { target: { value: "A" } });
+  expect(screen.getByRole("button", { name: "Build" }).hasAttribute("disabled")).toBe(true);
+  load = screen.getByRole("combobox", { name: "Load a saved preset" });
+  fireEvent.focus(load);
+  fireEvent.change(load, { target: { value: "My saved" } });
+  fireEvent.keyDown(load, { key: "Enter" });
+  await screen.findByText("Loaded My saved settings.");
+  await waitFor(() => expect(screen.getByRole("button", { name: "Build" }).hasAttribute("disabled")).toBe(false));
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Choose your starting text" }) as HTMLInputElement).value).toBe("Sample · Hebrew"));
+  expect((screen.getByRole("checkbox", { name: "Show advanced settings" }) as HTMLInputElement).checked).toBe(true);
+  expect((screen.getByRole("checkbox", { name: "Offline HTML book" }) as HTMLInputElement).checked).toBe(false);
+  fireEvent.click(screen.getByRole("tab", { name: "Advanced" }));
+  expect(parse((screen.getByRole("textbox", { name: "Settings YAML" }) as HTMLTextAreaElement).value)).toEqual(preset.settings);
+  const upload = (text: string) => {
+    const file = new File([text], "settings.yaml", { type: "text/yaml" });
+    Object.defineProperty(file, "text", { value: async () => text });
+    fireEvent.change(screen.getByLabelText("Upload settings YAML"), { target: { files: [file] } });
+  };
+  upload("book:\n  project: other\n  file_name: index.xml\ntypography:\n  fonts:\n    latin: Example Font\ndeclarations:\n  custom:\n    enabled: false\n    count: 0\n    empty: null\n");
+  await screen.findByText("Settings loaded.");
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Choose your starting text" }) as HTMLInputElement).value).toBe("Other · English"));
+  fireEvent.click(screen.getByRole("tab", { name: "Advanced" }));
+  const imported = parse((screen.getByRole("textbox", { name: "Settings YAML" }) as HTMLTextAreaElement).value);
+  expect(imported.typography.fonts.latin.names).toEqual([{ name: "Example Font" }]);
+  expect(imported.declarations.custom).toEqual({ enabled: false, count: 0, empty: null });
+  upload("- invalid\n- settings\n");
+  await screen.findByText("Settings must be a mapping");
+  await waitFor(() => expect((screen.getByRole("combobox", { name: "Choose your starting text" }) as HTMLInputElement).value).toBe("Other · English"));
+  const saveFile = screen.getByRole("button", { name: "Save settings YAML" });
+  expect(saveFile.parentElement).toBe(screen.getByRole("button", { name: "Save preset" }).parentElement);
+  fireEvent.click(screen.getByRole("button", { name: "Save preset" }));
+  fireEvent.change(screen.getByRole("textbox", { name: "Preset name" }), { target: { value: "Imported" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await screen.findByText("Preset saved until you delete it.");
+  const saved = vi.mocked(api).mock.calls.find(([path, method]) => path.startsWith("/presets/") && method === "PUT")!;
+  expect(saved[2].asset).toBeNull();
+  expect(saved[2].settings).toEqual(imported);
 });
