@@ -1,3 +1,4 @@
+import { RequiredMark } from "./RequiredMark";
 import React, { useId, useState } from "react";
 
 export function PresetNameForm({ initialName = "", onSave, onCancel, disabled = false }: {
@@ -24,8 +25,9 @@ export function PresetNameForm({ initialName = "", onSave, onCancel, disabled = 
         setBusy(false);
       }
     }}>
-      <label htmlFor={id}>Preset name</label>
-      <input id={id} autoFocus required maxLength={200} value={name}
+      <label htmlFor={id}>Preset name<RequiredMark /></label>
+      <input id={id} aria-required="true" aria-invalid={!name.trim() || undefined}
+        className={!name.trim() ? "required-empty" : undefined} autoFocus required maxLength={200} value={name}
         disabled={busy} onChange={(event) => setName(event.target.value)} />
       {error && <p role="alert">{error}</p>}
       <div className="row">

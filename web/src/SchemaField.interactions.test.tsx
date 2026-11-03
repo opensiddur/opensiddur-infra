@@ -315,3 +315,27 @@ it("keeps a required font entry while its name is cleared and replaced", () => {
     normal_size: 12,
   });
 });
+
+it("marks required empty values without marking defaults or treating zero and false as empty", () => {
+  const schema = { type: "object", required: ["name", "count", "enabled", "layout"], properties: {
+    name: { type: "string", minLength: 1 },
+    count: { type: "integer" },
+    enabled: { type: "boolean" },
+    layout: { type: "string", enum: ["pages", "pairs"], default: "pairs" },
+  } };
+  function Example() {
+    const [value, setValue] = useState({ name: "", count: 0, enabled: false });
+    return <SchemaField schema={schema} root={{}} value={value} label="Example" onChange={setValue} />;
+  }
+  const { container } = render(<Example />);
+  const name = screen.getByRole("textbox", { name: "name" });
+  expect(name.getAttribute("aria-required")).toBe("true");
+  expect(name.getAttribute("aria-invalid")).toBe("true");
+  expect(name.classList.contains("required-empty")).toBe(true);
+  expect(screen.getByRole("spinbutton", { name: "count" }).getAttribute("aria-invalid")).toBeNull();
+  expect(screen.getByRole("combobox", { name: "enabled" }).getAttribute("aria-invalid")).toBeNull();
+  expect(screen.getByRole("combobox", { name: "layout" }).getAttribute("aria-required")).toBeNull();
+  expect(container.querySelectorAll(".required-marker")).toHaveLength(3);
+  fireEvent.change(name, { target: { value: "My font" } });
+  expect(name.getAttribute("aria-invalid")).toBeNull();
+});

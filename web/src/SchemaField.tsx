@@ -1,3 +1,4 @@
+import { RequiredMark } from "./RequiredMark";
 import { createContext, useContext, useEffect, useId, useState } from "react";
 export const SettingsEditContext = createContext<
   (id: string, pending: boolean) => void
@@ -159,6 +160,7 @@ export function SchemaField({
   label,
   advanced = true,
   expanded = false,
+  required = false,
 }: {
   schema: Value;
   root: Value;
@@ -167,6 +169,7 @@ export function SchemaField({
   label: string;
   advanced?: boolean;
   expanded?: boolean;
+  required?: boolean;
 }) {
   const id = useId();
   const [newKey, setNewKey] = useState("");
@@ -189,6 +192,9 @@ export function SchemaField({
   }, [valueSignature]);
   const model = shape(schema, root, value),
     s = model.schema;
+  const isRequired = required && !Object.hasOwn(s, "default");
+  const missingRequired = isRequired && (value === undefined || (value === "" && !validDraft(schema, root, value)));
+  const fieldLabel = <>{label}{isRequired && <RequiredMark />}</>;
   const objectSchema = model.variants.find(
     (v: Value) => v.type === "object" || v.properties,
   );
@@ -241,7 +247,7 @@ export function SchemaField({
         }
       >
         <summary>
-          {label}
+          {fieldLabel}
           {value === undefined && <span className="hint"> (default)</span>}
         </summary>
         {reset}
@@ -305,6 +311,8 @@ export function SchemaField({
                 root={root}
                 value={current[key]}
                 label={key.replaceAll("_", " ")}
+                required={(group.required || []).includes(key) &&
+                  (required || value !== undefined || objectDraft !== undefined || expanded || custom)}
                 onChange={(v) => set(key, v)}
               />
             ))}
@@ -361,6 +369,7 @@ export function SchemaField({
                           value={draft}
                           onChange={setDraft}
                           label={draftKey}
+                          required
                           advanced={advanced}
                         />
                         <button
@@ -399,7 +408,7 @@ export function SchemaField({
         open={expanded || value !== undefined || adding}
       >
         <summary>
-          {label}
+          {fieldLabel}
           {value === undefined && <span className="hint"> (default)</span>}
         </summary>
         {reset}
@@ -412,6 +421,7 @@ export function SchemaField({
               root={root}
               value={v}
               label={`Item ${i + 1}`}
+              required
               onChange={(v) =>
                 v === undefined
                   ? remove(i)
@@ -445,6 +455,7 @@ export function SchemaField({
               root={root}
               value={draft}
               label="New item"
+              required
               onChange={setDraft}
             />
             <p className="hint">
@@ -489,6 +500,9 @@ export function SchemaField({
       <>
         <select
           id={id}
+          aria-required={isRequired || undefined}
+          aria-invalid={missingRequired || undefined}
+          className={missingRequired ? "required-empty" : undefined}
           value={mode}
           onChange={(e) => {
             if (e.target.value === "custom") setCustom(true);
@@ -521,6 +535,9 @@ export function SchemaField({
         {mode === "custom" && (
           <input
             aria-label={`${label} custom value`}
+            aria-required={isRequired || undefined}
+            aria-invalid={missingRequired || undefined}
+            className={missingRequired ? "required-empty" : undefined}
             type="number"
             min={s.minimum}
             max={s.maximum}
@@ -542,6 +559,9 @@ export function SchemaField({
       <div className="scalar-input">
         <input
           id={id}
+          aria-required={isRequired || undefined}
+          aria-invalid={missingRequired || undefined}
+          className={missingRequired ? "required-empty" : undefined}
           type={numeric ? "number" : "text"}
           value={
             value === null || value === undefined
@@ -589,7 +609,7 @@ export function SchemaField({
   }
   return (
     <div className="field">
-      <label htmlFor={id}>{label}</label>
+      <label htmlFor={id}>{fieldLabel}</label>
       {description}
       {editor}
       {s.default !== undefined &&

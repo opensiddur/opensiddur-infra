@@ -1,3 +1,4 @@
+import { RequiredMark } from "./RequiredMark";
 import { useEffect, useId, useRef, useState } from "react";
 
 export type SearchOption = { value: string; label: string; keywords?: string };
@@ -41,6 +42,7 @@ export function SearchSelect({
   clearAfterSelect = false,
   allowClear = false,
   labelClassName,
+  required = false,
 }: {
   id?: string;
   label: string;
@@ -51,11 +53,13 @@ export function SearchSelect({
   clearAfterSelect?: boolean;
   allowClear?: boolean;
   labelClassName?: string;
+  required?: boolean;
 }) {
   const generated = useId();
   const inputId = id || generated;
   const listId = inputId + "-results";
   const selectedLabel = options.find((o) => o.value === value)?.label || "";
+  const missingRequired = required && !options.some((option) => option.value === value);
   const [query, setQuery] = useState(selectedLabel);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
@@ -88,13 +92,16 @@ export function SearchSelect({
       }}
     >
       <label htmlFor={inputId} className={labelClassName}>
-        {label}
+        {label}{required && <RequiredMark />}
       </label>
       <div className="search-input">
         <input
           id={inputId}
           ref={inputRef}
           role="combobox"
+          aria-required={required || undefined}
+          aria-invalid={missingRequired || undefined}
+          className={missingRequired ? "required-empty" : undefined}
           autoComplete="off"
           aria-autocomplete="list"
           aria-expanded={open}

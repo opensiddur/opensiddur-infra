@@ -19,6 +19,7 @@ import { normalizeSettings } from "./settings-data";
 import { Allowance, PublishedPresets, projectLabel } from "./BuilderControls";
 import { SearchSelect } from "./SearchSelect";
 import { LicenseNotice } from "./LicenseNotice";
+import { RequiredMark } from "./RequiredMark";
 import { PresetNameForm } from "./PresetNameForm";
 import { SettingsEditContext } from "./SchemaField";
 import "./style.css";
@@ -424,9 +425,12 @@ export function App() {
             <button onClick={() => action(google)}>Continue with Google</button>
           )}
           <label>
-            Email address
+            Email address<RequiredMark />
             <input
               type="email"
+              required aria-required="true"
+              aria-invalid={!email.trim() || undefined}
+              className={!email.trim() ? "required-empty" : undefined}
               autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -896,6 +900,7 @@ export function App() {
           </section>
           <main className="layout">
             <div className="builder-toolbar">
+                <p className="hint"><RequiredMark /> Required fields. Empty required fields are highlighted.</p>
               <label className="check">
                 <input
                   type="checkbox"
@@ -914,6 +919,7 @@ export function App() {
               <section className="card project">
                 <SearchSelect
                   id="project"
+                  required
                   label="Choose your starting text"
                   labelClassName="eyebrow"
                   options={projects.map((p: Value) => ({
@@ -1163,6 +1169,7 @@ export function App() {
                             root={schema}
                             value={settings[key]}
                             label={key}
+                            required={(schema.required || []).includes(key)}
                             onChange={(v) => setRoot(key, v)}
                           />
                         </details>
@@ -1217,6 +1224,8 @@ export function App() {
               </section>
               <section className="card output">
                 <h2>Create your book</h2>
+                <fieldset className={!formats.some((format) => advanced || ["pdf", "html"].includes(format)) ? "required-empty" : undefined}>
+                  <legend>Output formats<RequiredMark /></legend>
                 {["pdf", "html"].map((f) => (
                   <label className="check" key={f}>
                     <input
@@ -1254,6 +1263,7 @@ export function App() {
                     ))}
                   </div>
                 )}
+                </fieldset>
                 <p className="hint">
                   Your settings are included with your downloads. Files are
                   available for 30 days. A full book may take several hours; you
