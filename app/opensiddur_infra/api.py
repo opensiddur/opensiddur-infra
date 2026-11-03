@@ -196,6 +196,9 @@ def create_app(
                 "builds_remaining": max(0, 5 - full["counts"].get("full", 0)),
                 "build_seconds_remaining": max(0, 10800 - full["seconds"]),
                 "preview_seconds_remaining": max(0, 1200 - preview_quota["seconds"]),
+                "pdf_samples_remaining": max(
+                    0, 10 - preview_quota["counts"].get("pdf", 0)
+                ),
             },
             "id": principal.account_id,
             "consent": row.get("consent"),
@@ -313,18 +316,18 @@ def create_app(
     @app.get("/api/v1/builds/{identifier}/preview")
     def preview(identifier: uuid.UUID, principal=Depends(authenticated)):
         build = builds.get(principal.account_id, str(identifier))
-        if build["type"] != "html":
+        if build["type"] not in {"html", "pdf"}:
             raise HTTPException(404)
-        item = next(
-            (a for a in build["artifacts"] if a["name"] == "preview.html"), None
-        )
+        filename = "book.pdf" if build["type"] == "pdf" else "preview.html"
+        item = next((a for a in build["artifacts"] if a["name"] == filename), None)
         if not item:
             raise HTTPException(404)
         return Response(
             objects().read(item["object"]),
-            media_type="text/html",
+            media_type="application/pdf" if build["type"] == "pdf" else "text/html",
             headers={
-                "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:"
+                "Cache-Control": "no-store",
+                "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'; img-src data:; font-src data:",
             },
         )
 
@@ -417,7 +420,10 @@ def create_app(
         if (
             not isinstance(advanced, bool)
             or not isinstance(formats, list)
-            or any(not isinstance(f, str) or f not in {"pdf", "html", "tex", "xml"} for f in formats)
+            or any(
+                not isinstance(f, str) or f not in {"pdf", "html", "tex", "xml"}
+                for f in formats
+            )
         ):
             raise HTTPException(422, "Invalid preset display or output preferences")
         row = {
@@ -428,7 +434,10 @@ def create_app(
             "settings": settings,
             "release": config.release,
             "asset": data.get("asset"),
-            "preferences": {"advanced": advanced, "formats": list(dict.fromkeys(formats))},
+            "preferences": {
+                "advanced": advanced,
+                "formats": list(dict.fromkeys(formats)),
+            },
         }
         account_key = f"account:{principal.account_id}"
 

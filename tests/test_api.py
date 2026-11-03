@@ -109,6 +109,49 @@ class ApiTests(unittest.TestCase):
             401,
         )
 
+    def test_private_pdf_preview_and_allowance(self):
+        response = self.client.post(
+            "/api/v1/builds",
+            headers=self.headers,
+            json={
+                "release": "test",
+                "settings": {"book": {"project": "synthetic"}},
+                "formats": ["pdf"],
+                "type": "pdf",
+                "idempotency_key": str(uuid.uuid4()),
+            },
+        )
+        self.assertEqual(response.status_code, 202, response.text)
+        row = response.json()
+        artifact = self.objects.put(
+            "builds/private/book.pdf", b"%PDF-synthetic", "application/pdf"
+        )
+        self.app.state.builds.finish(row["id"], "succeeded", artifacts=[artifact])
+        path = "/api/v1/builds/" + row["id"] + "/preview"
+        result = self.client.get(path, headers=self.headers)
+        self.assertEqual(result.status_code, 200)
+        self.assertEqual(result.content, b"%PDF-synthetic")
+        self.assertEqual(result.headers["content-type"], "application/pdf")
+        self.assertEqual(result.headers["cache-control"], "no-store")
+        self.assertEqual(self.client.get(path).status_code, 401)
+        self.assertEqual(
+            self.client.get(
+                path, headers={"Authorization": "Bearer other"}
+            ).status_code,
+            404,
+        )
+        allowance = self.client.get("/api/v1/account", headers=self.headers).json()[
+            "allowances"
+        ]
+        self.assertEqual(allowance["pdf_samples_remaining"], 9)
+        self.assertEqual(
+            self.client.get(
+                "/api/v1/builds/" + self.submit()["id"] + "/preview",
+                headers=self.headers,
+            ).status_code,
+            404,
+        )
+
     def test_cross_account_access_denied(self):
         row = self.submit()
         response = self.client.get(
@@ -226,11 +269,17 @@ class ApiTests(unittest.TestCase):
         response = self.client.put(
             "/api/v1/presets/" + identifier,
             headers=self.headers,
-            json={"name": "Layout", "settings": {}, "preferences": {"advanced": True, "formats": ["html", "tex"]}},
+            json={
+                "name": "Layout",
+                "settings": {},
+                "preferences": {"advanced": True, "formats": ["html", "tex"]},
+            },
         )
         self.assertEqual(response.status_code, 200)
         saved = self.client.get("/api/v1/presets", headers=self.headers).json()
-        self.assertEqual(saved[0]["preferences"], {"advanced": True, "formats": ["html", "tex"]})
+        self.assertEqual(
+            saved[0]["preferences"], {"advanced": True, "formats": ["html", "tex"]}
+        )
         invalid = self.client.put(
             "/api/v1/presets/" + identifier,
             headers=self.headers,

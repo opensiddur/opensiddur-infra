@@ -14,7 +14,7 @@ Print and electronic compilations are separate. HTML is built first so a later P
 - Authenticated `GET|POST /builds`, `GET|DELETE /builds/{uuid}`, `POST /builds/{uuid}/cancel`
 - `POST /builds/{uuid}/share` with `{enabled: true|false}`; enabling rotates the bearer UUID
 - `GET /builds/{uuid}/files/{name}` or `?redirect=false` for a short-lived URL as JSON
-- `GET /builds/{uuid}/preview` for an isolated, script-disabled HTML sample
+- `GET /builds/{uuid}/preview` for an owner-only sample: isolated, script-disabled HTML or PDF bytes (no-store)
 - Public `GET /shares/{shareUuid}`, `/shares/{shareUuid}/files/{name}` for shared PDF/HTML only
 - Authenticated `GET /presets`, `PUT|DELETE /presets/{uuid}`, `POST /assets` with PNG/JPEG bytes
 
@@ -25,3 +25,5 @@ Status reports a stage and per-format results, not estimated percentages. 422 id
 Firestore records have deterministic hashed document names and an explicit kind. Transactions read all participating documents before writes. Quotas use admission-day ledgers; runtime and concurrency reservations are shared across API instances. No in-process counters enforce global limits.
 
 Private object prefixes use random build UUIDs. Sharing has a different random UUID, stored only as a hash. Share metadata omits identity/settings and excludes ZIP/source/settings downloads. Owners and share holders get signed URLs valid for at most five minutes and no later than expiry. HTML books download as attachments. Samples run in sandboxed iframes without same-origin or script privileges.
+
+The builder switches to PDF preview when Typography opens, so parallel layout, page geometry and other print settings are rendered by the actual PDF exporter. PDF samples update after a 1.5-second pause; users can switch back to faster reflowing HTML, which does not implement print pagination or parallel layout. PDF previews use the existing ten-samples-per-day allowance and shared preview runtime budget. Old preview content is cleared on settings changes, stale responses are discarded, and PDF object URLs are revoked on replacement/sign-out. The fixed Psalm 23 sample needs matching translation coverage to demonstrate parallel columns.

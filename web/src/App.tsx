@@ -46,6 +46,8 @@ export function App() {
     [history, setHistory] = useState<Value[]>([]),
     [presets, setPresets] = useState<Value[]>([]),
     [preview, setPreview] = useState(""),
+    [previewMode, setPreviewMode] = useState<"html" | "pdf">("html"),
+    [previewRevision, refreshPreview] = useState(0),
     [previewStatus, setPreviewStatus] = useState("Sign in to see a sample"),
     [yaml, setYaml] = useState(""),
     [route, setRoute] = useState(() => location.pathname + location.hash),
@@ -171,10 +173,18 @@ export function App() {
       clearInterval(timer);
     };
   }, [user]);
+  useEffect(() => {
+    return () => { if (preview.startsWith("blob:")) URL.revokeObjectURL(preview); };
+  }, [preview]);
   const signature = JSON.stringify({ settings, asset });
   useEffect(() => {
     const revision = ++generation.current;
+    setPreview("");
     if (!user || !hasConsent || !settings.book || hasPendingSettings) return;
+    if (previewMode === "pdf" && account?.allowances?.pdf_samples_remaining === 0) {
+      setPreviewStatus("No print samples remaining today. Switch to text preview to continue previewing.");
+      return;
+    }
     const timer = setTimeout(
       () =>
         action(async () => {
@@ -190,12 +200,12 @@ export function App() {
             }
           }
           if (generation.current !== revision) return;
-          setPreviewStatus("Preparing sample…");
+          setPreviewStatus(previewMode === "pdf" ? "Typesetting print sample…" : "Preparing text sample…");
           const build = await api("/builds", "POST", {
             release: catalog.release,
             settings,
-            formats: ["html"],
-            type: "html",
+            formats: [previewMode],
+            type: previewMode,
             asset,
             idempotency_key: crypto.randomUUID(),
           });
@@ -204,7 +214,7 @@ export function App() {
             await api("/builds/" + build.id + "/cancel", "POST");
             return;
           }
-          for (let i = 0; i < 90; i++) {
+          for (let i = 0; i < (previewMode === "pdf" ? 300 : 90); i++) {
             await new Promise((r) => setTimeout(r, 1000));
             if (generation.current !== revision) return;
             const state = await api("/builds/" + build.id);
@@ -217,11 +227,13 @@ export function App() {
                   { headers: { Authorization: "Bearer " + token } },
                 );
                 if (!response.ok) throw new Error("Sample unavailable");
-                const html = await response.text();
+                const content = previewMode === "pdf"
+                  ? URL.createObjectURL(await response.blob())
+                  : await response.text();
                 if (generation.current === revision) {
-                  setPreview(html);
-                  setPreviewStatus("Sample updated");
-                }
+                  setPreview(content);
+                  setPreviewStatus(previewMode === "pdf" ? "Print sample updated" : "Text sample updated");
+                } else if (previewMode === "pdf") URL.revokeObjectURL(content);
               } else
                 setPreviewStatus(
                   "Sample unavailable: " + JSON.stringify(state.results),
@@ -233,10 +245,10 @@ export function App() {
             "Sample is taking longer than expected; see build history.",
           );
         }),
-      750,
+      previewMode === "pdf" ? 1500 : 750,
     );
     return () => clearTimeout(timer);
-  }, [signature, user?.uid, hasConsent, hasPendingSettings]);
+  }, [signature, previewMode, previewRevision, user?.uid, hasConsent, hasPendingSettings]);
   async function applySettings(value: Value) {
     setPublishedPreset("");
     if (!value || typeof value !== "object" || Array.isArray(value))
@@ -759,7 +771,10 @@ export function App() {
                       role="tab"
                       aria-selected={tab === t}
                       key={t}
-                      onClick={() => setTab(t)}
+                      onClick={() => {
+                        setTab(t);
+                        if (t === "Typography") setPreviewMode("pdf");
+                      }}
                     >
                       {t}
                     </button>
@@ -767,8 +782,8 @@ export function App() {
                 </div>
                 {tab === "Typography" && (
                   <p className="hint">
-                    Choose fonts, text sizes and page layout. Leave a choice
-                    unchecked to use its default.
+                    Choose fonts, text sizes and page layout. Use (default)
+                    to leave a setting to the compiler. Print preview shows these changes.
                   </p>
                 )}
                 {tab === "Distribution" && (
@@ -963,11 +978,26 @@ export function App() {
               <section className="card preview">
                 <h2>Preview your settings</h2>
                 <p className="hint">
-                  This short Psalm 23 sample updates as you edit. If your chosen
+                  This short Psalm 23 sample updates as you edit. Print preview
+                  shows the typeset page layout; text preview shows reflowing
+                  HTML and does not apply page or parallel-layout settings.
+                  Pairs and facing pages need a matching translation. If your chosen
                   sources do not contain the passage, the sample uses a Hebrew
                   Bible text. Title pages and some notes appear only in the full
                   book.
                 </p>
+                <label>
+                  Preview format
+                  <select value={previewMode} onChange={(e) => setPreviewMode(e.target.value as "html" | "pdf")}>
+                    <option value="html">Text (HTML)</option>
+                    <option value="pdf">Print layout (PDF)</option>
+                  </select>
+                </label>
+                {previewMode === "pdf" && <p className="hint">
+                  Typesetting takes longer than text preview.
+                  {account?.allowances?.pdf_samples_remaining !== undefined &&
+                    ` ${account.allowances.pdf_samples_remaining} print samples remaining today.`}
+                </p>}
                 <p role="status">
                   {!user ? (
                     <a href="/#account" onClick={openAccount}>
@@ -983,7 +1013,17 @@ export function App() {
                     previewStatus
                   )}
                 </p>
-                {preview ? (
+                {preview && previewMode === "pdf" ? (
+                  <>
+                    <object
+                      className="pdf-preview" data={preview} type="application/pdf"
+                      aria-label="Print settings demonstration"
+                    >
+                      <p>Your browser cannot display this PDF.</p>
+                    </object>
+                    <p><a href={preview} download="sample.pdf">Download the print sample</a></p>
+                  </>
+                ) : preview ? (
                   <iframe
                     title="Settings demonstration"
                     sandbox=""
@@ -996,9 +1036,9 @@ export function App() {
                   disabled={
                     !user || !hasConsent || !settings.book || hasPendingSettings
                   }
-                  onClick={() => action(() => build("pdf"))}
+                  onClick={() => { setPreviewMode("pdf"); refreshPreview((n) => n + 1); }}
                 >
-                  Typeset a PDF sample
+                  Update print sample
                 </button>
               </section>
             </div>
