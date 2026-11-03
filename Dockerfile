@@ -1,6 +1,6 @@
-FROM python:3.12-slim-bookworm AS common
+FROM python:3.12-slim-trixie AS common
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BUNDLE_DIR=/opt/bundle PROCESSOR_DIR=/opt/processor
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates fontconfig culmus fonts-linuxlibertine fonts-sil-ezra fonts-freefont-otf && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates fontconfig fonts-culmus fonts-linuxlibertine fonts-sil-ezra fonts-freefont-otf && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir uv==0.12.21
 WORKDIR /opt/infra
 COPY pyproject.toml uv.lock ./
