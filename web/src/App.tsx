@@ -19,6 +19,7 @@ import { normalizeSettings } from "./settings-data";
 import { Allowance, PublishedPresets, projectLabel } from "./BuilderControls";
 import { SearchSelect } from "./SearchSelect";
 import { LicenseNotice } from "./LicenseNotice";
+import { PresetNameForm } from "./PresetNameForm";
 import { SettingsEditContext } from "./SchemaField";
 import "./style.css";
 const terminal = new Set([
@@ -54,6 +55,8 @@ export function App() {
     [asset, setAsset] = useState<string | null>(null),
     [notice, setNotice] = useState<Value>(),
     [share, setShare] = useState<Value>();
+  const [savingPreset, setSavingPreset] = useState(false);
+  const [renamingPreset, setRenamingPreset] = useState<string | null>(null);
   const [pendingFields, setPendingFields] = useState<Set<string>>(new Set());
   const hasPendingSettings = pendingFields.size > 0;
   const reportPending = useCallback(
@@ -139,6 +142,8 @@ export function App() {
         setHistory(await api("/builds"));
       });
     else {
+      setSavingPreset(false);
+      setRenamingPreset(null);
       setAccount(undefined);
       setHistory([]);
       setPresets([]);
@@ -305,9 +310,7 @@ export function App() {
         : "Typeset sample queued.",
     );
   }
-  async function save() {
-    const name = window.prompt("Name this preset");
-    if (!name) return;
+  async function save(name: string) {
     await api("/presets/" + crypto.randomUUID(), "PUT", {
       name,
       settings,
@@ -315,6 +318,7 @@ export function App() {
       preferences: { advanced, formats },
     });
     setPresets(await api("/presets"));
+    setSavingPreset(false);
     setMessage("Preset saved until you delete it.");
   }
   function localFile(name: string, data: string) {
@@ -424,22 +428,17 @@ export function App() {
                 >
                   {p.name}
                 </button>
-                <button
-                  onClick={() =>
-                    action(async () => {
-                      const name = window.prompt("Rename preset", p.name);
-                      if (name) {
-                        await api("/presets/" + p.id, "PUT", {
-                          ...p,
-                          name,
-                        });
-                        setPresets(await api("/presets"));
-                      }
-                    })
-                  }
-                >
-                  Rename
-                </button>
+                {renamingPreset === p.id ? (
+                  <PresetNameForm initialName={p.name}
+                    onCancel={() => setRenamingPreset(null)}
+                    onSave={async (name) => {
+                      await api("/presets/" + p.id, "PUT", { ...p, name });
+                      setPresets(await api("/presets"));
+                      setRenamingPreset(null);
+                    }} />
+                ) : (
+                  <button onClick={() => setRenamingPreset(p.id)}>Rename</button>
+                )}
                 <button
                   onClick={() =>
                     action(async () => {
@@ -969,11 +968,15 @@ export function App() {
                       !settings.book ||
                       hasPendingSettings
                     }
-                    onClick={() => action(save)}
+                    onClick={() => setSavingPreset(true)}
                   >
                     Save preset
                   </button>
                 </div>
+                {savingPreset && (
+                  <PresetNameForm onSave={save} onCancel={() => setSavingPreset(false)}
+                    disabled={!user || !hasConsent || !settings.book || hasPendingSettings} />
+                )}
               </section>
               <section className="card preview">
                 <h2>Preview your settings</h2>

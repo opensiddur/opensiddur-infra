@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, act } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, act, waitFor } from "@testing-library/react";
 import { App } from "./App";
 import { api } from "./api";
 
@@ -57,4 +57,43 @@ it("switches Typography to real PDF previews and regenerates when Pages changes 
   expect(screen.getByLabelText("Print settings demonstration").getAttribute("data")).toBe("blob:synthetic-2");
   expect(revoke).toHaveBeenCalledWith("blob:synthetic-1");
   vi.unstubAllGlobals();
+});
+
+it("saves and renames presets through page fields without browser prompts", async () => {
+  vi.mocked(api).mockClear();
+  Element.prototype.scrollIntoView = vi.fn();
+  window.history.replaceState({}, "", "/");
+  const prompt = vi.spyOn(window, "prompt").mockImplementation(() => { throw new Error("prompt() is not supported"); });
+  let presets: any[] = [];
+  vi.mocked(api).mockImplementation(async (path, method, data) => {
+    if (path === "/catalog") return { release: "synthetic", features: {}, projects: [
+      { id: "sample", title: "Sample", language: "he", files: ["index.xml"], presets: [] },
+    ] };
+    if (path === "/schema") return { properties: {} };
+    if (path === "/account") return { consent: { version: "test" }, consent_version: "test" };
+    if (path === "/presets") return presets;
+    if (path.startsWith("/presets/") && method === "PUT") { presets = [{ ...data, id: path.split("/").pop() }]; return {}; }
+    return [];
+  });
+  await act(async () => { render(<App />); });
+  const title = screen.getByRole("combobox", { name: "Choose your starting text" });
+  fireEvent.focus(title);
+  fireEvent.change(title, { target: { value: "Sample" } });
+  fireEvent.keyDown(title, { key: "Enter" });
+  fireEvent.click(screen.getByRole("button", { name: "Save preset" }));
+  expect(screen.getByRole("button", { name: "Save" }).hasAttribute("disabled")).toBe(true);
+  fireEvent.change(screen.getByRole("textbox", { name: "Preset name" }), { target: { value: "  My siddur  " } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await screen.findByText("Preset saved until you delete it.");
+  expect(presets[0]).toMatchObject({ name: "My siddur", settings: { book: { project: "sample" } }, preferences: { advanced: false, formats: ["pdf", "html"] } });
+  fireEvent.click(screen.getByText("Account", { selector: "summary" }));
+  fireEvent.click(screen.getByRole("link", { name: "Account & saved presets" }));
+  fireEvent.click(screen.getByText("Saved presets & account controls"));
+  fireEvent.click(screen.getByRole("button", { name: "Rename" }));
+  expect((screen.getByRole("textbox", { name: "Preset name" }) as HTMLInputElement).value).toBe("My siddur");
+  fireEvent.change(screen.getByRole("textbox", { name: "Preset name" }), { target: { value: "Renamed siddur" } });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "Renamed siddur" })).toBeTruthy());
+  expect(presets[0].preferences).toEqual({ advanced: false, formats: ["pdf", "html"] });
+  expect(prompt).not.toHaveBeenCalled();
 });
