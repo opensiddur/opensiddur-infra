@@ -1,6 +1,6 @@
 import type { Value } from "./api";
 
-/** Canonicalize the processor's documented font shorthand for schema editing. */
+/** Canonicalize the processor's documented shorthand for schema editing. */
 export function normalizeSettings(input: Value): Value {
   const result = JSON.parse(JSON.stringify(input));
   const fonts = result?.typography?.fonts;
@@ -32,6 +32,17 @@ export function normalizeSettings(input: Value): Value {
         configurable: true,
         writable: true,
       });
+    }
+  }
+  for (const key of ["page_header", "page_footer"]) {
+    const heads = result?.typography?.[key];
+    if (!heads || typeof heads !== "object") continue;
+    for (const side of Object.values(heads) as Value[]) {
+      if (!side || typeof side !== "object" || Array.isArray(side)) continue;
+      for (const position of ["left", "center", "right"]) {
+        if (typeof side[position] === "string")
+          side[position] = { text: side[position] };
+      }
     }
   }
   return result;

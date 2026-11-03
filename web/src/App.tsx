@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { onAuthStateChanged } from "firebase/auth";
 import { parse, stringify } from "yaml";
 import {
@@ -19,6 +19,7 @@ import { normalizeSettings } from "./settings-data";
 import { Allowance, PublishedPresets, projectLabel } from "./BuilderControls";
 import { SearchSelect } from "./SearchSelect";
 import { LicenseNotice } from "./LicenseNotice";
+import { SettingsEditContext } from "./SchemaField";
 import "./style.css";
 const terminal = new Set([
   "succeeded",
@@ -51,6 +52,19 @@ export function App() {
     [asset, setAsset] = useState<string | null>(null),
     [notice, setNotice] = useState<Value>(),
     [share, setShare] = useState<Value>();
+  const [pendingFields, setPendingFields] = useState<Set<string>>(new Set());
+  const hasPendingSettings = pendingFields.size > 0;
+  const reportPending = useCallback(
+    (id: string, pending: boolean) =>
+      setPendingFields((old) => {
+        if (old.has(id) === pending) return old;
+        const next = new Set(old);
+        if (pending) next.add(id);
+        else next.delete(id);
+        return next;
+      }),
+    [],
+  );
   const hasConsent =
     !!account?.consent && account.consent.version === account.consent_version;
   const generation = useRef(0),
@@ -160,7 +174,7 @@ export function App() {
   const signature = JSON.stringify({ settings, asset });
   useEffect(() => {
     const revision = ++generation.current;
-    if (!user || !hasConsent || !settings.book) return;
+    if (!user || !hasConsent || !settings.book || hasPendingSettings) return;
     const timer = setTimeout(
       () =>
         action(async () => {
@@ -222,7 +236,7 @@ export function App() {
       750,
     );
     return () => clearTimeout(timer);
-  }, [signature, user?.uid, hasConsent]);
+  }, [signature, user?.uid, hasConsent, hasPendingSettings]);
   async function applySettings(value: Value) {
     setPublishedPreset("");
     if (!value || typeof value !== "object" || Array.isArray(value))
@@ -479,7 +493,7 @@ export function App() {
     </section>
   );
   return (
-    <>
+    <SettingsEditContext.Provider value={reportPending}>
       <header>
         <div className="brand-row">
           <a href="https://opensiddur.org/" className="brand">
@@ -727,6 +741,12 @@ export function App() {
               </section>
               <section className="card settings">
                 <h2>Settings</h2>
+                {hasPendingSettings && (
+                  <p role="status" className="hint">
+                    Complete or cancel unfinished settings before previewing,
+                    saving or creating a book.
+                  </p>
+                )}
                 <div className="tabs" role="tablist">
                   {[
                     "Sources",
@@ -884,6 +904,7 @@ export function App() {
                       ))}
                     <h3>Settings YAML</h3>
                     <textarea
+                      aria-label="Settings YAML"
                       spellCheck={false}
                       rows={20}
                       value={yaml}
@@ -927,7 +948,12 @@ export function App() {
                     </button>
                   )}
                   <button
-                    disabled={!user || !hasConsent || !settings.book}
+                    disabled={
+                      !user ||
+                      !hasConsent ||
+                      !settings.book ||
+                      hasPendingSettings
+                    }
                     onClick={() => action(save)}
                   >
                     Save preset
@@ -951,6 +977,8 @@ export function App() {
                     <a href="/#account" onClick={openAccount}>
                       Review processing consent in your account to preview.
                     </a>
+                  ) : hasPendingSettings ? (
+                    "Complete your unfinished settings to update the sample."
                   ) : (
                     previewStatus
                   )}
@@ -965,7 +993,9 @@ export function App() {
                   <div className="empty">Your sample will appear here.</div>
                 )}
                 <button
-                  disabled={!user || !hasConsent || !settings.book}
+                  disabled={
+                    !user || !hasConsent || !settings.book || hasPendingSettings
+                  }
                   onClick={() => action(() => build("pdf"))}
                 >
                   Typeset a PDF sample
@@ -1039,6 +1069,7 @@ export function App() {
                     !user ||
                     !hasConsent ||
                     !settings.book ||
+                    hasPendingSettings ||
                     !formats.some(
                       (f) => advanced || ["pdf", "html"].includes(f),
                     )
@@ -1177,6 +1208,6 @@ export function App() {
         <a href="/licenses">Software licenses & notices</a>
         <a href="https://github.com/opensiddur/opensiddur-infra">Source</a>
       </footer>
-    </>
+    </SettingsEditContext.Provider>
   );
 }

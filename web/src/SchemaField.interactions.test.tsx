@@ -1,0 +1,235 @@
+// @vitest-environment jsdom
+import React, { useState } from "react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+  cleanup,
+  fireEvent,
+  render,
+  screen,
+  within,
+} from "@testing-library/react";
+import {
+  SchemaField,
+  resolve,
+  numericChoices,
+  SettingsEditContext,
+} from "./SchemaField";
+afterEach(cleanup);
+
+const root = {
+  $defs: {
+    Layout: { type: "string", enum: ["pages", "pairs", "interleaved"] },
+  },
+};
+function pick(select: HTMLElement, label: string) {
+  const option = within(select).getByRole("option", {
+    name: label,
+  }) as HTMLOptionElement;
+  fireEvent.change(select, { target: { value: option.value } });
+}
+
+describe("typed settings and defaults", () => {
+  it("opens parallel settings without changing data and commits only the chosen layout", () => {
+    const changed = vi.fn();
+    const schema = {
+      type: "object",
+      properties: { layout: { $ref: "#/$defs/Layout", default: "pairs" } },
+    };
+    function Example() {
+      const [value, setValue] = useState<unknown>();
+      return (
+        <SchemaField
+          schema={schema}
+          root={root}
+          value={value}
+          label="parallel"
+          onChange={(v) => {
+            changed(v);
+            setValue(v);
+          }}
+        />
+      );
+    }
+    const { container } = render(<Example />);
+    fireEvent.click(screen.getByText("parallel", { selector: "summary" }));
+    expect(changed).not.toHaveBeenCalled();
+    expect(container.querySelectorAll('input[type="checkbox"]')).toHaveLength(
+      0,
+    );
+    const select = screen.getByRole("combobox", { name: "layout" });
+    expect((select as HTMLSelectElement).value).toBe("");
+    expect(screen.getByText("Default: pairs.")).toBeTruthy();
+    pick(select, "pages");
+    expect(changed).toHaveBeenLastCalledWith({ layout: "pages" });
+    pick(select, "(default)");
+    expect(changed).toHaveBeenLastCalledWith(undefined);
+    expect(resolve(schema.properties.layout, root).default).toBe("pairs");
+  });
+  it("uses a bounded integer dropdown and preserves default, false and null as distinct values", () => {
+    const changed = vi.fn();
+    render(
+      <SchemaField
+        label="depth"
+        schema={{ type: "integer", minimum: 1, maximum: 4, default: 4 }}
+        root={{}}
+        value={undefined}
+        onChange={changed}
+      />,
+    );
+    const range = screen.getByRole("combobox", { name: "depth" });
+    expect(
+      within(range)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["(default)", "1", "2", "3", "4"]);
+    pick(range, "2");
+    expect(changed).toHaveBeenLastCalledWith(2);
+    cleanup();
+    render(
+      <SchemaField
+        label="Include notes"
+        schema={{
+          anyOf: [{ type: "boolean" }, { type: "null" }],
+          default: false,
+        }}
+        root={{}}
+        value={undefined}
+        onChange={changed}
+      />,
+    );
+    const boolean = screen.getByRole("combobox", { name: "Include notes" });
+    pick(boolean, "No");
+    expect(changed).toHaveBeenLastCalledWith(false);
+    pick(boolean, "(undefined)");
+    expect(changed).toHaveBeenLastCalledWith(null);
+    pick(boolean, "(default)");
+    expect(changed).toHaveBeenLastCalledWith(undefined);
+  });
+  it("keeps unrestricted text and numbers editable and supports resetting an override", () => {
+    const changed = vi.fn();
+    render(
+      <SchemaField
+        label="Title"
+        schema={{ type: "string" }}
+        root={{}}
+        value={undefined}
+        onChange={changed}
+      />,
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "Title" }), {
+      target: { value: "My book" },
+    });
+    expect(changed).toHaveBeenLastCalledWith("My book");
+    fireEvent.click(screen.getByRole("button", { name: "(default)" }));
+    expect(changed).toHaveBeenLastCalledWith(undefined);
+    cleanup();
+    render(
+      <SchemaField
+        label="Size"
+        schema={{ type: "number", exclusiveMinimum: 0 }}
+        root={{}}
+        value={undefined}
+        onChange={changed}
+      />,
+    );
+    fireEvent.change(screen.getByRole("spinbutton", { name: "Size" }), {
+      target: { value: "12.5" },
+    });
+    expect(changed).toHaveBeenLastCalledWith(12.5);
+  });
+  it("retains arbitrary valid values in continuous ranges through a custom number field", () => {
+    const changed = vi.fn();
+    render(
+      <SchemaField
+        label="Spacing"
+        schema={{ type: "number", minimum: 0.5, maximum: 3, default: 1 }}
+        root={{}}
+        value={undefined}
+        onChange={changed}
+      />,
+    );
+    pick(screen.getByRole("combobox", { name: "Spacing" }), "Custom value…");
+    expect(changed).not.toHaveBeenCalled();
+    fireEvent.change(
+      screen.getByRole("spinbutton", { name: "Spacing custom value" }),
+      { target: { value: "1.25" } },
+    );
+    expect(changed).toHaveBeenLastCalledWith(1.25);
+    expect(
+      numericChoices({ type: "integer", minimum: 1, exclusiveMaximum: 3.5 })
+        ?.values,
+    ).toEqual([1, 2, 3]);
+    expect(
+      numericChoices({
+        type: "number",
+        minimum: 0,
+        maximum: 0.3,
+        multipleOf: 0.1,
+      })?.values,
+    ).toEqual([0, 0.1, 0.2, 0.3]);
+  });
+  it("holds incomplete required objects and new array items outside submitted settings", () => {
+    const changed = vi.fn();
+    const pending = vi.fn();
+    const schema = {
+      type: "object",
+      required: ["first", "second"],
+      properties: {
+        first: { type: "string", minLength: 1 },
+        second: { type: "string", minLength: 1 },
+      },
+    };
+    render(
+      <SettingsEditContext.Provider value={pending}>
+        <SchemaField
+          label="Entry"
+          expanded
+          schema={schema}
+          root={{}}
+          value={undefined}
+          onChange={changed}
+        />
+      </SettingsEditContext.Provider>,
+    );
+    fireEvent.change(screen.getByRole("textbox", { name: "first" }), {
+      target: { value: "One" },
+    });
+    expect(changed).not.toHaveBeenCalled();
+    expect(pending).toHaveBeenCalledWith(expect.any(String), true);
+    fireEvent.change(screen.getByRole("textbox", { name: "second" }), {
+      target: { value: "Two" },
+    });
+    expect(changed).toHaveBeenLastCalledWith({ first: "One", second: "Two" });
+    cleanup();
+    changed.mockClear();
+    render(
+      <SchemaField
+        label="Fonts"
+        expanded
+        schema={{
+          type: "array",
+          minItems: 1,
+          items: {
+            type: "object",
+            required: ["name"],
+            properties: { name: { type: "string", minLength: 1 } },
+          },
+        }}
+        root={{}}
+        value={undefined}
+        onChange={changed}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Add item" }));
+    expect(changed).not.toHaveBeenCalled();
+    expect(
+      (screen.getByRole("button", { name: "Add to list" }) as HTMLButtonElement)
+        .disabled,
+    ).toBe(true);
+    fireEvent.change(screen.getByRole("textbox", { name: "name" }), {
+      target: { value: "Example Font" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add to list" }));
+    expect(changed).toHaveBeenLastCalledWith([{ name: "Example Font" }]);
+  });
+});

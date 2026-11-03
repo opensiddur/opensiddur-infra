@@ -16,9 +16,9 @@ describe("settings control semantics", () => {
     const explicit = renderToStaticMarkup(
       <SchemaField {...base} value={false} />,
     );
-    expect(inherited).not.toContain("<select");
-    expect(explicit).toContain("<select");
-    expect(explicit).toContain('value="false" selected');
+    expect(inherited).toContain('value="" selected="">(default)');
+    expect(explicit).toContain('value="1" selected="">No');
+    expect(inherited).not.toContain('type="checkbox"');
   });
   it("escapes labels and text supplied by schema metadata", () => {
     const rendered = renderToStaticMarkup(
@@ -93,4 +93,30 @@ describe("legacy preset typography editing", () => {
     expect(result.typography.instructions.from).toBe("both");
     expect(result.declarations["opensiddur:quorum"].minyan).toBe(false);
   });
+});
+
+it("normalizes running-header shorthand without changing text or explicit conditions", () => {
+  const input = {
+    typography: {
+      page_header: {
+        all: {
+          left: "Example header",
+          right: { text: "{page}", if: "condition" },
+        },
+      },
+      page_footer: { odd: { center: "Example footer" } },
+    },
+  };
+  const result = normalizeSettings(input);
+  expect(result.typography.page_header.all.left).toEqual({
+    text: "Example header",
+  });
+  expect(result.typography.page_header.all.right).toEqual({
+    text: "{page}",
+    if: "condition",
+  });
+  expect(result.typography.page_footer.odd.center).toEqual({
+    text: "Example footer",
+  });
+  expect(input.typography.page_header.all.left).toBe("Example header");
 });

@@ -593,3 +593,38 @@ footer {
     padding: 8px;
   }
 }
+
+.field-group > summary {
+  font-size: 15px;
+}
+.field-group .nested {
+  margin-top: 12px;
+}
+.use-default {
+  font-size: 13px;
+  padding: 6px 9px;
+  margin: 6px 0;
+}
+.scalar-input {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.scalar-input input {
+  flex: 1 1 180px;
+  width: auto;
+}
+.scalar-input button {
+  white-space: nowrap;
+}
+.item-draft,
+.property-draft {
+  border-left: 3px solid var(--orange);
+  padding-left: 14px;
+  margin: 12px 0;
+}
+.array-item {
+  border-bottom: 1px solid var(--border);
+  padding: 10px 0;
+}

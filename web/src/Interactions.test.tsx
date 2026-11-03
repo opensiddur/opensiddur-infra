@@ -12,6 +12,7 @@ import { SearchSelect } from "./SearchSelect";
 import { Sources } from "./Settings";
 import { App } from "./App";
 import { api, emailLink } from "./api";
+import { parse } from "yaml";
 
 vi.mock("./api", () => ({
   api: vi.fn(),
@@ -162,9 +163,7 @@ describe("account access", () => {
     expect(input.value).toBe("Example Siddur · Hebrew");
     fireEvent.click(screen.getByText("Account", { selector: "summary" }));
     fireEvent.click(screen.getByRole("link", { name: "Sign in" }));
-    expect(
-      screen.getByRole("heading", { name: "Sign in" }),
-    ).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
     expect(screen.getByRole("textbox", { name: "Email address" })).toBeTruthy();
     expect(window.location.hash).toBe("#account");
     fireEvent.click(
@@ -184,9 +183,7 @@ describe("account access", () => {
 describe("license page interaction", () => {
   it("places full metadata license text in a collapsed disclosure with a concise summary", async () => {
     render(<App />);
-    fireEvent.click(
-      screen.getByRole("link", { name: "Software licenses" }),
-    );
+    fireEvent.click(screen.getByRole("link", { name: "Software licenses" }));
     const summary = await screen.findByText("Example package 1.0 — MIT", {
       selector: "summary",
     });
@@ -198,5 +195,83 @@ describe("license page interaction", () => {
     expect(details.querySelector("pre")?.textContent).toContain(
       "Permission is hereby granted in this synthetic fixture",
     );
+  });
+});
+
+describe("typed settings in the complete builder", () => {
+  it("chooses pages directly, holds incomplete edits, and exports only completed values", async () => {
+    const schema = {
+      properties: {
+        typography: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            parallel: {
+              type: "object",
+              additionalProperties: false,
+              properties: {
+                layout: { $ref: "#/$defs/Layout", default: "pairs" },
+              },
+            },
+            caption: { type: "string", minLength: 2 },
+          },
+        },
+      },
+      $defs: { Layout: { type: "string", enum: ["pages", "pairs"] } },
+    };
+    vi.mocked(api).mockImplementation(async (path) =>
+      path === "/catalog"
+        ? { projects, release: "synthetic", features: {} }
+        : path === "/schema"
+          ? schema
+          : {},
+    );
+    render(<App />);
+    const starting = (await screen.findByRole("combobox", {
+      name: "Choose your starting text",
+    })) as HTMLInputElement;
+    await waitFor(() => expect(starting.disabled).toBe(false));
+    fireEvent.focus(starting);
+    fireEvent.change(starting, { target: { value: "Example Hebrew" } });
+    fireEvent.keyDown(starting, { key: "Enter" });
+    fireEvent.click(screen.getByRole("tab", { name: "Typography" }));
+    fireEvent.click(
+      await screen.findByText(/^typography/i, { selector: "summary" }),
+    );
+    fireEvent.click(screen.getByText(/^parallel/i, { selector: "summary" }));
+    const layout = screen.getByRole("combobox", { name: "layout" });
+    const pages = screen.getByRole("option", {
+      name: "pages",
+    }) as HTMLOptionElement;
+    fireEvent.change(layout, { target: { value: pages.value } });
+    expect((layout as HTMLSelectElement).value).toBe(pages.value);
+    const caption = screen.getByRole("textbox", { name: "caption" });
+    fireEvent.change(caption, { target: { value: "X" } });
+    expect(
+      screen.getByText(
+        "Complete or cancel unfinished settings before previewing, saving or creating a book.",
+      ),
+    ).toBeTruthy();
+    fireEvent.change(caption, { target: { value: "XY" } });
+    expect(
+      screen.queryByText(
+        "Complete or cancel unfinished settings before previewing, saving or creating a book.",
+      ),
+    ).toBeNull();
+    fireEvent.click(
+      screen.getByRole("checkbox", { name: "Show advanced settings" }),
+    );
+    fireEvent.click(screen.getByRole("tab", { name: "Advanced" }));
+    const settings = parse(
+      (
+        screen.getByRole("textbox", {
+          name: "Settings YAML",
+        }) as HTMLTextAreaElement
+      ).value,
+    );
+    expect(settings.typography).toEqual({
+      parallel: { layout: "pages" },
+      caption: "XY",
+    });
   });
 });
