@@ -8,7 +8,7 @@ from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse, RedirectResponse, Response
 from pydantic import BaseModel, Field, ValidationError
 
-from .builds import Builds, Rejected, TERMINAL
+from .builds import LIMITS, TERMINAL, Builds, Rejected
 from .config import Config
 from .dispatch import Dispatcher
 from .identity import Accounts, FirebaseVerifier
@@ -196,8 +196,15 @@ def create_app(
                 "builds_remaining": max(0, 5 - full["counts"].get("full", 0)),
                 "build_seconds_remaining": max(0, 10800 - full["seconds"]),
                 "preview_seconds_remaining": max(0, 1200 - preview_quota["seconds"]),
+                "samples": {
+                    kind: {
+                        "used": preview_quota["counts"].get(kind, 0),
+                        "limit": LIMITS[kind][0],
+                    }
+                    for kind in ("html", "pdf")
+                },
                 "pdf_samples_remaining": max(
-                    0, 10 - preview_quota["counts"].get("pdf", 0)
+                    0, LIMITS["pdf"][0] - preview_quota["counts"].get("pdf", 0)
                 ),
             },
             "id": principal.account_id,

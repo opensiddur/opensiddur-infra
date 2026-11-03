@@ -147,7 +147,7 @@ main {
 .layout {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(300px, 1fr);
-  grid-template-areas: "toolbar toolbar" "project project" "settings preview" "account output";
+  grid-template-areas: "toolbar toolbar" "project project" "settings preview" "output output";
   gap: 24px;
   align-items: start;
 }
@@ -516,7 +516,7 @@ footer {
   max-width: 800px;
 }
 .layout {
-  grid-template-areas: "toolbar toolbar" "project project" "settings preview" "settings output";
+  grid-template-areas: "toolbar toolbar" "project project" "settings preview" "output output";
 }
 .search-select {
   position: relative;
@@ -637,3 +637,7 @@ footer {
   border: 1px solid var(--border);
   border-radius: 3px;
 }
+
+.output { grid-area: output; }
+.history-page .history { padding: 0; }
+nav a[aria-current="page"] { font-weight: 700; }

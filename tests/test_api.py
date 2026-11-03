@@ -145,6 +145,10 @@ class ApiTests(unittest.TestCase):
         ]
         self.assertEqual(allowance["pdf_samples_remaining"], 9)
         self.assertEqual(
+            allowance["samples"],
+            {"html": {"used": 0, "limit": 300}, "pdf": {"used": 1, "limit": 10}},
+        )
+        self.assertEqual(
             self.client.get(
                 "/api/v1/builds/" + self.submit()["id"] + "/preview",
                 headers=self.headers,

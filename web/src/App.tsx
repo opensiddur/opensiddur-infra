@@ -29,6 +29,16 @@ const terminal = new Set([
   "cancelled",
   "expired",
 ]);
+function buildStatus(state: string): string {
+  return ({ queued: "Queued", running: "Running", succeeded: "Complete",
+    partial: "Complete with errors", failed: "Failed", cancelled: "Cancelled", expired: "Expired" } as Record<string, string>)[state] || state;
+}
+function SampleAllowance({ allowances }: { allowances?: Value }) {
+  const counts = allowances?.samples;
+  return counts ? <p className="hint">
+    Samples today: {counts.html.used} of {counts.html.limit} text; {counts.pdf.used} of {counts.pdf.limit} print.
+  </p> : null;
+}
 export function App() {
   const [catalog, setCatalog] = useState<Value>(),
     [schema, setSchema] = useState<Value>(),
@@ -55,6 +65,9 @@ export function App() {
     [asset, setAsset] = useState<string | null>(null),
     [notice, setNotice] = useState<Value>(),
     [share, setShare] = useState<Value>();
+  const [currentBuild, setCurrentBuild] = useState<Value>();
+  const [buildError, setBuildError] = useState("");
+  const [building, setBuilding] = useState(false);
   const [savingPreset, setSavingPreset] = useState(false);
   const [renamingPreset, setRenamingPreset] = useState<string | null>(null);
   const [pendingFields, setPendingFields] = useState<Set<string>>(new Set());
@@ -97,6 +110,25 @@ export function App() {
       removeEventListener("hashchange", changed);
     };
   }, []);
+  useEffect(() => {
+    if (!user || !path.startsWith("/builds/")) return;
+    const id = path.slice("/builds/".length);
+    let active = true;
+    let timer: ReturnType<typeof setTimeout>;
+    setBuildError("");
+    async function poll() {
+      try {
+        const row = await api("/builds/" + encodeURIComponent(id));
+        if (!active) return;
+        setCurrentBuild(row);
+        if (!terminal.has(row.state)) timer = setTimeout(poll, 2000);
+      } catch (cause) {
+        if (active) setBuildError(cause instanceof Error ? cause.message : "Build unavailable");
+      }
+    }
+    poll();
+    return () => { active = false; clearTimeout(timer); };
+  }, [path, user?.uid]);
   function setSettings(value: Value | ((old: Value) => Value)) {
     if (typeof value === "function")
       setSettingsState((old: Value) => normalizeSettings(value(old)));
@@ -142,6 +174,7 @@ export function App() {
         setHistory(await api("/builds"));
       });
     else {
+      setCurrentBuild(undefined);
       setSavingPreset(false);
       setRenamingPreset(null);
       setAccount(undefined);
@@ -290,25 +323,22 @@ export function App() {
     setPublishedPreset(preset ? "0" : "");
     setAsset(null);
   }
-  async function build(type = "full") {
-    const row = await api("/builds", "POST", {
-      release: catalog.release,
-      settings,
-      formats:
-        type === "pdf"
-          ? ["pdf"]
-          : formats.filter((f) => advanced || ["pdf", "html"].includes(f)),
-      type,
-      asset,
-      idempotency_key: crypto.randomUUID(),
-    });
-    setHistory((old) => [row, ...old]);
-    setAccount(await api("/account"));
-    setMessage(
-      type === "full"
-        ? "Build queued. You can leave and return to this page."
-        : "Typeset sample queued.",
-    );
+  async function build() {
+    if (building) return;
+    setBuilding(true);
+    try {
+      const row = await api("/builds", "POST", {
+        release: catalog.release, settings,
+        formats: formats.filter((f) => advanced || ["pdf", "html"].includes(f)),
+        type: "full", asset, idempotency_key: crypto.randomUUID(),
+      });
+      setHistory((old) => [row, ...old]);
+      setCurrentBuild(row);
+      navigate("/builds/" + row.id);
+      setAccount(await api("/account"));
+    } finally {
+      setBuilding(false);
+    }
   }
   async function save(name: string) {
     await api("/presets/" + crypto.randomUUID(), "PUT", {
@@ -329,6 +359,7 @@ export function App() {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
+  const fullHistory = history.filter((row) => row.type === "full");
   const projects = catalog?.projects || [],
     selected = projects.find((p: Value) => p.id === settings.book?.project);
   const guided =
@@ -503,6 +534,122 @@ export function App() {
       )}
     </section>
   );
+  function renderBuild(b: Value, compact = false) {
+    if (compact) return (
+      <article className="card" key={b.id}>
+        <div className="row wrap">
+          <strong>{b.type === "full" ? "Book" : "Sample"} · {buildStatus(b.state)}</strong>
+          {b.created && <time dateTime={new Date(b.created * 1000).toISOString()}>{new Date(b.created * 1000).toLocaleString()}</time>}
+          <a href={"/builds/" + b.id} onClick={(event) => {
+            event.preventDefault(); navigate("/builds/" + b.id);
+          }}>View build</a>
+        </div>
+        {!terminal.has(b.state) && <p>{b.stage || "Waiting to start"}</p>}
+      </article>
+    );
+    return (
+      <article className="card" key={b.id}>
+                    <div className="row">
+                      <strong>
+                        {b.type === "full" ? "Book" : "Sample"} · {buildStatus(b.state)}
+                      </strong>
+                      <code>{b.id}</code>
+                      {path !== "/builds/" + b.id && <a href={"/builds/" + b.id} onClick={(e) => {
+                        e.preventDefault(); navigate("/builds/" + b.id);
+                      }}>View build</a>}
+                    </div>
+                    <p>
+                      {b.stage}{" "}
+                      {b.expires &&
+                        "· Expires " +
+                          new Date(b.expires * 1000).toLocaleDateString()}
+                    </p>
+                    {Object.entries(b.results || {}).map(([f, r]) => (
+                      <p key={f}>
+                        {f}: {(r as Value).state} {(r as Value).message}
+                      </p>
+                    ))}
+                    <div className="row wrap">
+                      {b.artifacts.map((a: Value) => (
+                        <button
+                          key={a.name}
+                          onClick={() =>
+                            action(() =>
+                              download(
+                                "/builds/" +
+                                  b.id +
+                                  "/files/" +
+                                  encodeURIComponent(a.name),
+                                a.name,
+                              ),
+                            )
+                          }
+                        >
+                          {a.name}
+                        </button>
+                      ))}
+                      {!terminal.has(b.state) && (
+                        <button
+                          onClick={() =>
+                            action(() =>
+                              api("/builds/" + b.id + "/cancel", "POST"),
+                            )
+                          }
+                        >
+                          Cancel
+                        </button>
+                      )}
+                      {b.type === "full" &&
+                        ["succeeded", "partial"].includes(b.state) && (
+                          <>
+                            <button
+                              onClick={() =>
+                                action(async () => {
+                                  const { token } = await api(
+                                    "/builds/" + b.id + "/share",
+                                    "POST",
+                                    { enabled: true },
+                                  );
+                                  setMessage(
+                                    "Share link (anyone with it can download PDF/HTML until expiry): " +
+                                      location.origin +
+                                      "/share/" +
+                                      token,
+                                  );
+                                })
+                              }
+                            >
+                              Create share link
+                            </button>
+                            <button
+                              onClick={() =>
+                                action(() =>
+                                  api("/builds/" + b.id + "/share", "POST", {
+                                    enabled: false,
+                                  }),
+                                )
+                              }
+                            >
+                              Revoke sharing
+                            </button>
+                          </>
+                        )}
+                      <button
+                        className="danger"
+                        onClick={() =>
+                          action(async () => {
+                            await api("/builds/" + b.id, "DELETE");
+                            setHistory(await api("/builds"));
+                            if (path === "/builds/" + b.id) navigate("/builds");
+                          })
+                        }
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </article>
+    );
+  }
   return (
     <SettingsEditContext.Provider value={reportPending}>
       <header>
@@ -570,6 +717,16 @@ export function App() {
             Builder
           </a>
           <a
+            href="/builds"
+            aria-current={path.startsWith("/builds") && !accountOpen ? "page" : undefined}
+            onClick={(e) => {
+              e.preventDefault();
+              navigate("/builds");
+            }}
+          >
+            Build history
+          </a>
+          <a
             href="/licenses"
             onClick={(e) => {
               e.preventDefault();
@@ -595,6 +752,35 @@ export function App() {
             </a>
           </p>
           {accountPanel}
+        </main>
+      ) : path.startsWith("/builds/") ? (
+        <main className="history-page">
+          <h1>Build status</h1>
+          <p><a href="/builds" onClick={(e) => { e.preventDefault(); navigate("/builds"); }}>All builds</a></p>
+          {!user ? <p><a href="/#account" onClick={openAccount}>Sign in to see this build.</a></p>
+            : buildError ? <p role="alert">{buildError}</p>
+            : currentBuild?.id === path.slice("/builds/".length) ? <>
+              <p role="status">{buildStatus(currentBuild.state)}: {currentBuild.stage || "Waiting to start"}</p>
+              <p>You can leave this page and return later from Build history. Downloads appear here when ready.</p>
+              {renderBuild(currentBuild)}
+            </> : <p role="status">Loading build…</p>}
+        </main>
+      ) : path === "/builds" ? (
+        <main className="history-page">
+          <h1>Build history</h1>
+          <SampleAllowance allowances={account?.allowances} />
+          {user ? (
+            <section className="history">
+              <h2>Your builds</h2>
+              {fullHistory.length === 0 ? (
+                <p>No builds yet.</p>
+              ) : (
+                fullHistory.map((b) => renderBuild(b, true))
+              )}
+            </section>
+          ) : (
+            <p><a href="/#account" onClick={openAccount}>Sign in to see your builds.</a></p>
+          )}
         </main>
       ) : path === "/licenses" ? (
         <main>
@@ -978,75 +1164,7 @@ export function App() {
                     disabled={!user || !hasConsent || !settings.book || hasPendingSettings} />
                 )}
               </section>
-              <section className="card preview">
-                <h2>Preview your settings</h2>
-                <p className="hint">
-                  This short Psalm 23 sample updates as you edit. Print preview
-                  shows the typeset page layout; text preview shows reflowing
-                  HTML and does not apply page or parallel-layout settings.
-                  Pairs and facing pages need a matching translation. If your chosen
-                  sources do not contain the passage, the sample uses a Hebrew
-                  Bible text. Title pages and some notes appear only in the full
-                  book.
-                </p>
-                <label>
-                  Preview format
-                  <select value={previewMode} onChange={(e) => setPreviewMode(e.target.value as "html" | "pdf")}>
-                    <option value="html">Text (HTML)</option>
-                    <option value="pdf">Print layout (PDF)</option>
-                  </select>
-                </label>
-                {previewMode === "pdf" && <p className="hint">
-                  Typesetting takes longer than text preview.
-                  {account?.allowances?.pdf_samples_remaining !== undefined &&
-                    ` ${account.allowances.pdf_samples_remaining} print samples remaining today.`}
-                </p>}
-                <p role="status">
-                  {!user ? (
-                    <a href="/#account" onClick={openAccount}>
-                      Sign in to see a sample
-                    </a>
-                  ) : !hasConsent ? (
-                    <a href="/#account" onClick={openAccount}>
-                      Review processing consent in your account to preview.
-                    </a>
-                  ) : hasPendingSettings ? (
-                    "Complete your unfinished settings to update the sample."
-                  ) : (
-                    previewStatus
-                  )}
-                </p>
-                {preview && previewMode === "pdf" ? (
-                  <>
-                    <object
-                      className="pdf-preview" data={preview} type="application/pdf"
-                      aria-label="Print settings demonstration"
-                    >
-                      <p>Your browser cannot display this PDF.</p>
-                    </object>
-                    <p><a href={preview} download="sample.pdf">Download the print sample</a></p>
-                  </>
-                ) : preview ? (
-                  <iframe
-                    title="Settings demonstration"
-                    sandbox=""
-                    srcDoc={preview}
-                  />
-                ) : (
-                  <div className="empty">Your sample will appear here.</div>
-                )}
-                <button
-                  disabled={
-                    !user || !hasConsent || !settings.book || hasPendingSettings
-                  }
-                  onClick={() => { setPreviewMode("pdf"); refreshPreview((n) => n + 1); }}
-                >
-                  Update print sample
-                </button>
-              </section>
-            </div>
-            <aside>
-              <section className="card">
+              <section className="card output">
                 <h2>Create your book</h2>
                 {["pdf", "html"].map((f) => (
                   <label className="check" key={f}>
@@ -1109,6 +1227,7 @@ export function App() {
                 <button
                   className="primary"
                   disabled={
+                    building ||
                     !user ||
                     !hasConsent ||
                     !settings.book ||
@@ -1119,118 +1238,80 @@ export function App() {
                   }
                   onClick={() => action(() => build())}
                 >
-                  Create siddur
+                  {building ? "Starting build…" : "Build"}
                 </button>
               </section>
-            </aside>
+
+              <section className="card preview">
+                <h2>Preview your settings</h2>
+                <p className="hint">
+                  This short Psalm 23 sample updates as you edit. Print preview
+                  shows the typeset page layout; text preview shows reflowing
+                  HTML and does not apply page or parallel-layout settings.
+                  Pairs and facing pages need a matching translation. If your chosen
+                  sources do not contain the passage, the sample uses a Hebrew
+                  Bible text. Title pages and some notes appear only in the full
+                  book.
+                </p>
+                <label>
+                  Preview format
+                  <select value={previewMode} onChange={(e) => setPreviewMode(e.target.value as "html" | "pdf")}>
+                    <option value="html">Text (HTML)</option>
+                    <option value="pdf">Print layout (PDF)</option>
+                  </select>
+                </label>
+                <SampleAllowance allowances={account?.allowances} />
+                {previewMode === "pdf" && <p className="hint">
+                  Typesetting takes longer than text preview.
+
+                </p>}
+                <p role="status">
+                  {!user ? (
+                    <a href="/#account" onClick={openAccount}>
+                      Sign in to see a sample
+                    </a>
+                  ) : !hasConsent ? (
+                    <a href="/#account" onClick={openAccount}>
+                      Review processing consent in your account to preview.
+                    </a>
+                  ) : hasPendingSettings ? (
+                    "Complete your unfinished settings to update the sample."
+                  ) : (
+                    previewStatus
+                  )}
+                </p>
+                {preview && previewMode === "pdf" ? (
+                  <>
+                    <object
+                      className="pdf-preview" data={preview} type="application/pdf"
+                      aria-label="Print settings demonstration"
+                    >
+                      <p>Your browser cannot display this PDF.</p>
+                    </object>
+                    <p><a href={preview} download="sample.pdf">Download the print sample</a></p>
+                  </>
+                ) : preview ? (
+                  <iframe
+                    title="Settings demonstration"
+                    sandbox=""
+                    srcDoc={preview}
+                  />
+                ) : (
+                  <div className="empty">Your sample will appear here.</div>
+                )}
+                <button
+                  disabled={
+                    !user || !hasConsent || !settings.book || hasPendingSettings
+                  }
+                  onClick={() => { setPreviewMode("pdf"); refreshPreview((n) => n + 1); }}
+                >
+                  Update print sample
+                </button>
+              </section>
+            </div>
+
           </main>
-          {user && (
-            <section className="history">
-              <h2>Your builds</h2>
-              {history.length === 0 ? (
-                <p>No builds yet.</p>
-              ) : (
-                history.map((b) => (
-                  <article className="card" key={b.id}>
-                    <div className="row">
-                      <strong>
-                        {b.type === "full" ? "Book" : "Sample"} · {b.state}
-                      </strong>
-                      <code>{b.id}</code>
-                    </div>
-                    <p>
-                      {b.stage}{" "}
-                      {b.expires &&
-                        "· Expires " +
-                          new Date(b.expires * 1000).toLocaleDateString()}
-                    </p>
-                    {Object.entries(b.results || {}).map(([f, r]) => (
-                      <p key={f}>
-                        {f}: {(r as Value).state} {(r as Value).message}
-                      </p>
-                    ))}
-                    <div className="row wrap">
-                      {b.artifacts.map((a: Value) => (
-                        <button
-                          key={a.name}
-                          onClick={() =>
-                            action(() =>
-                              download(
-                                "/builds/" +
-                                  b.id +
-                                  "/files/" +
-                                  encodeURIComponent(a.name),
-                                a.name,
-                              ),
-                            )
-                          }
-                        >
-                          {a.name}
-                        </button>
-                      ))}
-                      {!terminal.has(b.state) && (
-                        <button
-                          onClick={() =>
-                            action(() =>
-                              api("/builds/" + b.id + "/cancel", "POST"),
-                            )
-                          }
-                        >
-                          Cancel
-                        </button>
-                      )}
-                      {b.type === "full" &&
-                        ["succeeded", "partial"].includes(b.state) && (
-                          <>
-                            <button
-                              onClick={() =>
-                                action(async () => {
-                                  const { token } = await api(
-                                    "/builds/" + b.id + "/share",
-                                    "POST",
-                                    { enabled: true },
-                                  );
-                                  setMessage(
-                                    "Share link (anyone with it can download PDF/HTML until expiry): " +
-                                      location.origin +
-                                      "/share/" +
-                                      token,
-                                  );
-                                })
-                              }
-                            >
-                              Create share link
-                            </button>
-                            <button
-                              onClick={() =>
-                                action(() =>
-                                  api("/builds/" + b.id + "/share", "POST", {
-                                    enabled: false,
-                                  }),
-                                )
-                              }
-                            >
-                              Revoke sharing
-                            </button>
-                          </>
-                        )}
-                      <button
-                        className="danger"
-                        onClick={() =>
-                          action(async () => {
-                            await api("/builds/" + b.id, "DELETE");
-                            setHistory(await api("/builds"));
-                          })
-                        }
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  </article>
-                ))
-              )}
-            </section>
-          )}
+
         </>
       )}
       {message && (

@@ -59,7 +59,7 @@ it("switches Typography to real PDF previews and regenerates when Pages changes 
   vi.unstubAllGlobals();
 });
 
-it("saves and renames presets through page fields without browser prompts", async () => {
+it("saves and renames presets without prompts and keeps build history in its own tab", async () => {
   vi.mocked(api).mockClear();
   Element.prototype.scrollIntoView = vi.fn();
   window.history.replaceState({}, "", "/");
@@ -70,8 +70,13 @@ it("saves and renames presets through page fields without browser prompts", asyn
       { id: "sample", title: "Sample", language: "he", files: ["index.xml"], presets: [] },
     ] };
     if (path === "/schema") return { properties: {} };
-    if (path === "/account") return { consent: { version: "test" }, consent_version: "test" };
+    if (path === "/account") return { consent: { version: "test" }, consent_version: "test", allowances: { samples: { html: { used: 3, limit: 300 }, pdf: { used: 1, limit: 10 } } } };
     if (path === "/presets") return presets;
+    if (path === "/builds") return [
+      { id: "synthetic-history", type: "full", state: "succeeded", stage: "Finished", artifacts: [{ name: "book.pdf" }] },
+      { id: "active-history", type: "full", state: "running", stage: "Compiling active text", artifacts: [] },
+      { id: "hidden-sample", type: "html", state: "running", stage: "Sample-only stage", artifacts: [] },
+    ];
     if (path.startsWith("/presets/") && method === "PUT") { presets = [{ ...data, id: path.split("/").pop() }]; return {}; }
     return [];
   });
@@ -95,5 +100,60 @@ it("saves and renames presets through page fields without browser prompts", asyn
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(screen.getByRole("button", { name: "Renamed siddur" })).toBeTruthy());
   expect(presets[0].preferences).toEqual({ advanced: false, formats: ["pdf", "html"] });
+  fireEvent.click(screen.getByRole("link", { name: "← Return to the builder" }));
+  expect(screen.queryByText("synthetic-history")).toBeNull();
+  fireEvent.click(screen.getByRole("link", { name: "Build history" }));
+  expect(window.location.pathname).toBe("/builds");
+  expect(screen.getByRole("heading", { name: "Build history" })).toBeTruthy();
+  expect(screen.getByText("Book · Complete")).toBeTruthy();
+  expect(screen.getByText("Samples today: 3 of 300 text; 1 of 10 print.")).toBeTruthy();
+  expect(screen.queryByText("Sample-only stage")).toBeNull();
+  expect(screen.getAllByRole("link", { name: "View build" })).toHaveLength(2);
+  expect(screen.getByText("Book · Running")).toBeTruthy();
+  expect(screen.getByText("Compiling active text")).toBeTruthy();
+  expect(screen.queryByText("Finished")).toBeNull();
+  expect(screen.queryByRole("button", { name: "book.pdf" })).toBeNull();
+  expect(screen.getAllByRole("link", { name: "View build" })[0].getAttribute("href")).toBe("/builds/synthetic-history");
+  fireEvent.click(screen.getByRole("link", { name: "Builder" }));
+  expect((screen.getByRole("combobox", { name: "Choose your starting text" }) as HTMLInputElement).value).toBe("Sample · Hebrew");
+  expect(screen.queryByText("synthetic-history")).toBeNull();
   expect(prompt).not.toHaveBeenCalled();
+});
+
+it("opens the submitted full build and polls through completion to downloads", async () => {
+  vi.useFakeTimers();
+  vi.mocked(api).mockClear();
+  Element.prototype.scrollIntoView = vi.fn();
+  window.history.replaceState({}, "", "/");
+  let polls = 0;
+  const queued = { id: "new-build", type: "full", state: "queued", stage: "Waiting", artifacts: [] };
+  vi.mocked(api).mockImplementation(async (path, method, data) => {
+    if (path === "/catalog") return { release: "synthetic", features: {}, projects: [
+      { id: "sample", title: "Sample", language: "he", files: ["index.xml"], presets: [] },
+    ] };
+    if (path === "/schema") return { properties: {} };
+    if (path === "/account") return { consent: { version: "test" }, consent_version: "test", allowances: { samples: { html: { used: 3, limit: 300 }, pdf: { used: 1, limit: 10 } } } };
+    if (path === "/builds" && method === "POST") return data.type === "full" ? queued : { id: "preview" };
+    if (path === "/builds/new-build") return ++polls === 1
+      ? { ...queued, state: "running", stage: "Typesetting PDF" }
+      : { ...queued, state: "succeeded", stage: "Finished", artifacts: [{ name: "book.pdf" }] };
+    if (path === "/builds/preview") return { state: "cancelled", results: {} };
+    return [];
+  });
+  await act(async () => { render(<App />); });
+  const title = screen.getByRole("combobox", { name: "Choose your starting text" });
+  fireEvent.focus(title);
+  fireEvent.change(title, { target: { value: "Sample" } });
+  fireEvent.keyDown(title, { key: "Enter" });
+  await act(async () => { fireEvent.click(screen.getByRole("button", { name: "Build" })); });
+  expect(window.location.pathname).toBe("/builds/new-build");
+  expect(screen.getByRole("heading", { name: "Build status" })).toBeTruthy();
+  expect(screen.getByText("Running: Typesetting PDF")).toBeTruthy();
+  const submitted = vi.mocked(api).mock.calls.find(([path, method, data]) => path === "/builds" && method === "POST" && data.type === "full")!;
+  expect(submitted[2]).toMatchObject({ settings: { book: { project: "sample" } }, formats: ["pdf", "html"] });
+  await act(async () => { await vi.advanceTimersByTimeAsync(2100); });
+  expect(screen.getByText("Complete: Finished")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "book.pdf" })).toBeTruthy();
+  fireEvent.click(screen.getByRole("link", { name: "Builder" }));
+  expect((screen.getByRole("combobox", { name: "Choose your starting text" }) as HTMLInputElement).value).toBe("Sample · Hebrew");
 });
