@@ -191,8 +191,13 @@ reference database. The upstream compiler can update its index while reading;
 sharing a writable index across builds would introduce contention and state
 leakage.
 
+The image also initializes the font-name index. PDF runs copy that index into a
+private writable cache, so discovering fonts does not require reading unrelated
+system configuration or sharing mutable caches with another run.
+
 The image includes a versioned TeX/font stack. Generated TeX uses restricted file
-access and disables shell escape. Validated logos are staged beside the TeX and
+access to the working directory and installed, read-only system resources, and
+disables shell escape. Validated logos are staged beside the TeX and
 referenced relatively, rather than requiring broader file permissions. A change
 to the TeX stack or fonts can change glyph placement, bidirectional punctuation,
 and pagination; visual PDF checks are therefore part of rendering verification.
