@@ -21,6 +21,7 @@ CMD ["python", "-m", "uvicorn", "opensiddur_infra.api:production_app", "--factor
 FROM common AS worker
 USER root
 RUN apt-get update && apt-get install -y --no-install-recommends texlive-luatex texlive-latex-extra texlive-bibtex-extra texlive-humanities texlive-lang-other texlive-lang-european texlive-lang-arabic texlive-fonts-recommended && rm -rf /var/lib/apt/lists/* && mktexlsr && fc-cache -f
+RUN TEXMFCACHE=/usr/share/opensiddur-tex-cache luaotfload-tool --update --force && chmod -R a+rX /usr/share/opensiddur-tex-cache
 RUN python scripts/notices.py
 USER builder
 CMD ["python", "-m", "opensiddur_infra.worker"]

@@ -14,7 +14,12 @@ from opensiddur_infra.builds import Builds
 from opensiddur_infra.config import Config
 from opensiddur_infra.processor import Processor
 from opensiddur_infra.store import MemoryStore
-from opensiddur_infra.worker import execute, preview_app, tex_environment
+from opensiddur_infra.worker import (
+    execute,
+    prepare_tex_cache,
+    preview_app,
+    tex_environment,
+)
 
 processor = Path(os.environ.get("PROCESSOR_DIR", "/opt/processor"))
 projects = processor / "opensiddur-projects/project"
@@ -115,6 +120,10 @@ with (
     tempfile.TemporaryDirectory(prefix="other-build-") as other,
 ):
     work = Path(directory)
+    assert Path("/usr/share/opensiddur-tex-cache").is_dir(), (
+        "Image must initialize fonts"
+    )
+    prepare_tex_cache(work)
     secret = Path(other) / "private.txt"
     secret.write_text("another build's private data")
     source = r"""\documentclass{article}

@@ -181,6 +181,29 @@ class ProgressTests(unittest.TestCase):
 
 
 class RunnerTests(unittest.TestCase):
+    def test_font_cache_writes_are_private_to_each_execution(self):
+        from opensiddur_infra.worker import prepare_tex_cache
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "image-cache"
+            source.mkdir()
+            (source / "font-index").write_text("installed fonts")
+            first, second = root / "first", root / "second"
+            first.mkdir()
+            second.mkdir()
+            prepare_tex_cache(first, source)
+            prepare_tex_cache(second, source)
+            (first / "texmf-cache/font-index").write_text("private updated index")
+            prepare_tex_cache(first, source)
+            self.assertEqual(
+                (first / "texmf-cache/font-index").read_text(), "private updated index"
+            )
+            self.assertEqual(
+                (second / "texmf-cache/font-index").read_text(), "installed fonts"
+            )
+            self.assertEqual((source / "font-index").read_text(), "installed fonts")
+
     def test_logo_is_copied_and_only_its_generated_path_becomes_relative(self):
         from opensiddur_infra.runner import portable_notice_renderer
 

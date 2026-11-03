@@ -34,8 +34,17 @@ def tex_environment(work):
         # /usr/share is image-owned and not writable by the builder user.
         "TEXMFOUTPUT": "/usr/share",
         "TEXMF_OUTPUT_DIRECTORY": str(work),
+        "TEXMFVAR": str(work / "texmf-cache"),
+        "TEXMFCACHE": str(work / "texmf-cache"),
         "TMPDIR": str(work),
     }
+
+
+def prepare_tex_cache(work, source=Path("/usr/share/opensiddur-tex-cache")):
+    """Seed a private font cache; discovery outside the build is restricted at runtime."""
+    destination = work / "texmf-cache"
+    if source.is_dir() and not destination.exists():
+        shutil.copytree(source, destination)
 
 
 def execute(identifier, config=None, store=None, storage=None):
@@ -151,6 +160,8 @@ def execute(identifier, config=None, store=None, storage=None):
             settings_file.write_text(
                 yaml.safe_dump(settings, allow_unicode=True, sort_keys=False)
             )
+            if "pdf" in row["formats"]:
+                prepare_tex_cache(work)
             env = (
                 os.environ
                 | tex_environment(work)
