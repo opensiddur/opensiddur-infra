@@ -24,6 +24,20 @@ class Stopped(Exception):
     pass
 
 
+def tex_environment(work):
+    """Allow private build files and image-owned TeX resources, with no shell escape."""
+    return {
+        "openin_any": "p",
+        "openout_any": "p",
+        "shell_escape": "0",
+        # New luaotfload reads installed Unicode/font tables by absolute path.
+        # /usr/share is image-owned and not writable by the builder user.
+        "TEXMFOUTPUT": "/usr/share",
+        "TEXMF_OUTPUT_DIRECTORY": str(work),
+        "TMPDIR": str(work),
+    }
+
+
 def execute(identifier, config=None, store=None, storage=None):
     config = config or Config()
     store = store or FirestoreStore(config.project)
@@ -137,15 +151,14 @@ def execute(identifier, config=None, store=None, storage=None):
             settings_file.write_text(
                 yaml.safe_dump(settings, allow_unicode=True, sort_keys=False)
             )
-            env = os.environ | {
-                "REFERENCE_DB": str(db),
-                "BUILD_PROGRESS_FILE": str(progress_file),
-                "openin_any": "p",
-                "openout_any": "p",
-                "shell_escape": "0",
-                "TEXMFOUTPUT": str(work),
-                "TMPDIR": str(work),
-            }
+            env = (
+                os.environ
+                | tex_environment(work)
+                | {
+                    "REFERENCE_DB": str(db),
+                    "BUILD_PROGRESS_FILE": str(progress_file),
+                }
+            )
 
             progress.set("prepare", "succeeded")
 

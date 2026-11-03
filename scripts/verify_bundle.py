@@ -2,17 +2,19 @@
 
 import json
 import os
+import subprocess
+import tempfile
 import uuid
 from dataclasses import replace
 from pathlib import Path
 
 from opensiddur.exporter.settings import validate_settings
+from opensiddur_infra.api import create_app
 from opensiddur_infra.builds import Builds
 from opensiddur_infra.config import Config
-from opensiddur_infra.store import MemoryStore
-from opensiddur_infra.worker import execute, preview_app
-from opensiddur_infra.api import create_app
 from opensiddur_infra.processor import Processor
+from opensiddur_infra.store import MemoryStore
+from opensiddur_infra.worker import execute, preview_app, tex_environment
 
 processor = Path(os.environ.get("PROCESSOR_DIR", "/opt/processor"))
 projects = processor / "opensiddur-projects/project"
@@ -99,8 +101,43 @@ for name in (
 assert outputs.files["book.pdf"].startswith(b"%PDF")
 pdf_step = next(step for step in finished["steps"] if step["id"] == "pdf")
 assert pdf_step["pass_number"] >= 1, pdf_step
-assert all(step["state"] == "succeeded" for step in finished["steps"]), finished["steps"]
-assert b"{logo.png}" in outputs.files["book.tex"], "TeX logo must remain portable and sandbox-compatible"
+assert all(step["state"] == "succeeded" for step in finished["steps"]), finished[
+    "steps"
+]
+assert b"{logo.png}" in outputs.files["book.tex"], (
+    "TeX logo must remain portable and sandbox-compatible"
+)
+
+# Exercise the real Lua IO policy as the unprivileged image user. New TeX needs
+# installed Unicode tables, but must not gain access to credentials or other runs.
+with (
+    tempfile.TemporaryDirectory(prefix="tex-policy-") as directory,
+    tempfile.TemporaryDirectory(prefix="other-build-") as other,
+):
+    work = Path(directory)
+    secret = Path(other) / "private.txt"
+    secret.write_text("another build's private data")
+    source = r"""\documentclass{article}
+\begin{document}
+\directlua{
+assert(io.open('/etc/passwd', 'r') == nil)
+assert(io.open('OTHER_FILE', 'r') == nil)
+assert(io.open('/usr/share/opensiddur-write-probe', 'w') == nil)
+local f = assert(io.open('private-output.txt', 'w')); f:write('ok'); f:close()
+}
+Policy check.
+\end{document}
+""".replace("OTHER_FILE", str(secret))
+    (work / "policy.tex").write_text(source)
+    result = subprocess.run(
+        ["lualatex", "-interaction=nonstopmode", "-halt-on-error", "policy.tex"],
+        cwd=work,
+        env=os.environ | tex_environment(work),
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stdout.decode(errors="replace")[-4000:]
+    assert (work / "private-output.txt").read_text() == "ok"
 print(
     "Actual unprivileged worker: catalog/preset validation, private SQLite, PDF, HTML, TeX, XML, ZIP and publication all passed"
 )
