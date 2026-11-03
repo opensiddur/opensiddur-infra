@@ -267,3 +267,51 @@ it("edits Customs enums and numeric ranges directly without a Set-value activati
   pick(choice, "(default)");
   expect(changed).toHaveBeenLastCalledWith({ "opensiddur:example": {} });
 });
+
+it("distinguishes explicit empty text from resetting to default", () => {
+  const changed = vi.fn();
+  render(
+    <SchemaField
+      label="Header text"
+      schema={{ type: "string", default: "Inherited header" }}
+      root={{}}
+      value="Custom header"
+      onChange={changed}
+    />,
+  );
+  fireEvent.change(screen.getByRole("textbox", { name: "Header text" }), {
+    target: { value: "" },
+  });
+  expect(changed).toHaveBeenLastCalledWith("");
+  fireEvent.click(screen.getByRole("button", { name: "(default)" }));
+  expect(changed).toHaveBeenLastCalledWith(undefined);
+});
+it("keeps a required font entry while its name is cleared and replaced", () => {
+  const changed = vi.fn();
+  render(
+    <SchemaField
+      label="Font"
+      expanded
+      schema={{
+        type: "object",
+        required: ["name"],
+        properties: {
+          name: { type: "string", minLength: 1 },
+          normal_size: { type: "number" },
+        },
+      }}
+      root={{}}
+      value={{ name: "Old Font", normal_size: 12 }}
+      onChange={changed}
+    />,
+  );
+  const name = screen.getByRole("textbox", { name: "name" });
+  fireEvent.change(name, { target: { value: "" } });
+  expect(changed).not.toHaveBeenCalled();
+  expect(screen.getByRole("textbox", { name: "name" })).toBe(name);
+  fireEvent.change(name, { target: { value: "New Font" } });
+  expect(changed).toHaveBeenLastCalledWith({
+    name: "New Font",
+    normal_size: 12,
+  });
+});

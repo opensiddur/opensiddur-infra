@@ -550,7 +550,13 @@ export function SchemaField({
                 ? JSON.stringify(value)
                 : value
           }
-          placeholder={value === null ? "(undefined)" : "(default)"}
+          placeholder={
+            value === undefined
+              ? "(default)"
+              : value === null
+                ? "(undefined)"
+                : undefined
+          }
           min={s.minimum}
           max={s.maximum}
           minLength={s.minLength}
@@ -563,7 +569,7 @@ export function SchemaField({
           }
           onChange={(e) => {
             const text = e.target.value;
-            if (!text) onChange(undefined);
+            if (!text) onChange(numeric ? undefined : "");
             else if (numeric) onChange(Number(text));
             else if (!s.type) {
               try {
