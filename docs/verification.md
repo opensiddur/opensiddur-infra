@@ -4,7 +4,7 @@ The repository and local worktrees are created. The implementation is in [draft 
 
 ## Completed checks
 
-- 25 backend tests using synthetic data, 14 frontend regression and interaction tests, TypeScript/Vite production build, dependency audit, Terraform formatting/validation, and GitHub CI.
+- 25 backend tests using synthetic data, 24 frontend regression and interaction tests, TypeScript/Vite production build, dependency audit, Terraform formatting/validation, and GitHub CI.
 - Local browser checks loaded 141 projects from the real development API. Existing presets, source reordering, typography editing and YAML round trips preserved font names, processor aliases and false/null custom declarations. The software-notice page loaded the deployed inventory.
 - The real development stack generated PDF, HTML, TeX, print/electronic XML, settings, metadata, notices and ZIP through Cloud Tasks OIDC, the API, Cloud Run Jobs, Firestore and private Storage. Private HTML preview dispatch passed separately.
 - API-service-account IAM signing and an actual signed-URL Storage download passed. Synthetic account records and artifacts were removed.
@@ -40,3 +40,15 @@ Implementation source `912d830` replaces the separate catalog/source search inpu
 The licenses page uses a concise summary even when a package stores its full license in the metadata label, and preserves that full text inside the expandable notice. Synthetic DOM interaction tests cover filtering, keyboard selection, duplicate prevention, account navigation with retained settings and the license disclosure. All 25 backend and 14 frontend checks pass. Browser automation was unavailable for this follow-up, so no new visual browser acceptance pass is claimed.
 
 The follow-up is deployed as release `414815b1fb8bd05a0fc8`. Its [Cloud Build smoke test](https://console.cloud.google.com/cloud-build/builds/ac60f20e-17be-4589-9054-47fd4ce7bebd?project=817628492067) passed. Post-deployment HTTP checks confirm the API release and that `/`, `/account`, `/login` and `/licenses` serve the tested bundle; the hosted JavaScript is byte-identical to the production build. Live Hyperframe metadata matches the full-text case covered by the disclosure tests. The browser access host remained unavailable for a visual recheck.
+
+## Typed controls and inherited defaults
+
+The settings editor now renders enum/boolean choices and bounded numeric ranges as selectors with a `(default)` option. Free text and unrestricted numbers are editable fields with a default reset. Continuous numeric ranges retain a custom-number entry so permitted fractional values remain available. Object groups expand without creating an override. References preserve property-level defaults, including parallel layout's `pairs` default, rather than inserting an empty enum value.
+
+Customs numeric and symbol settings use the same direct controls, removing the intermediate Set-value step that could insert invalid zero/empty-string values. New list entries and incomplete structured values remain drafts; preview, save and build wait until those edits are completed or cancelled. Font and running-header shorthand is normalized to editable schema objects without changing its meaning.
+
+Synthetic tests cover direct `pages` selection, group expansion without mutations, default removal, explicit false/null, bounded and continuous numeric choices, staged required values, staged font-list entries, Customs choices and the complete builder-to-YAML path. All 25 backend and 24 frontend tests pass. A one-off compatibility check accepted all six normalized published presets. Browser automation remained unavailable.
+
+Text-editing regressions additionally distinguish a valid explicit empty string from resetting an override to default, and verify that clearing/replacing a required font name retains the entry and its size. The final frontend correction changes only `web/src` relative to source `5ead148`; it is layered over the previously verified compiler image for release `1e213ff3514ad87100ce`, regenerates bundle metadata/notices, and reruns the unprivileged worker export smoke test. The normal full-source deployment scripts remain applicable.
+
+The final typed-controls update is deployed as release `aa6ccdd722304371237b`, source `0e07d5d`. Its [image smoke test](https://console.cloud.google.com/cloud-build/builds/0c3d5117-9593-467c-8fe7-9265a94c7274?project=817628492067) passed all compiler output formats. Post-deployment checks confirmed the API release and that Hosting serves the byte-identical tested production JavaScript. All 25 backend and 24 frontend checks pass; live visual browser verification remains unavailable.
