@@ -144,6 +144,7 @@ def create_app(
                 "release",
                 "state",
                 "stage",
+                "steps",
                 "created",
                 "finished",
                 "expires",
@@ -305,7 +306,9 @@ def create_app(
         if not artifact or (shared and not name.endswith((".pdf", ".html"))):
             raise HTTPException(404, "Artifact not found")
         url = objects().url(
-            artifact["object"], build["expires"], artifact["content_type"]
+            artifact["object"],
+            build.get("expires") or build["created"] + 86400,
+            artifact["content_type"],
         )
         return RedirectResponse(url, 303) if redirect else {"url": url}
 

@@ -19,6 +19,7 @@ import { normalizeSettings } from "./settings-data";
 import { Allowance, PublishedPresets, projectLabel } from "./BuilderControls";
 import { SearchSelect } from "./SearchSelect";
 import { LicenseNotice } from "./LicenseNotice";
+import { BuildProgress } from "./BuildProgress";
 import { RequiredMark } from "./RequiredMark";
 import { PresetNameForm } from "./PresetNameForm";
 import { SettingsEditContext } from "./SchemaField";
@@ -576,6 +577,19 @@ export function App() {
       )}
     </section>
   );
+  function renderLogs(b: Value) {
+    const logs = (b.artifacts || []).filter((artifact: Value) => /\.(log|blg)$/.test(artifact.name));
+    return logs.length > 0 ? <section className="build-logs">
+      <h3>Logs</h3>
+      <p className="hint">Private logs follow this build’s expiry and are excluded from share links.</p>
+      <div className="row wrap">{logs.map((artifact: Value) => <button key={artifact.name}
+        onClick={() => action(() => download("/builds/" + b.id + "/files/" + encodeURIComponent(artifact.name), artifact.name))}>
+        Download {artifact.name}
+      </button>)}</div>
+    </section> : <section className="build-logs"><h3>Logs</h3><p className="hint">{terminal.has(b.state)
+      ? "No downloadable logs were retained for this build."
+      : "Logs will appear here as the build runs."}</p></section>;
+  }
   function renderBuild(b: Value, compact = false) {
     if (compact) return (
       <article className="card" key={b.id}>
@@ -586,7 +600,10 @@ export function App() {
             event.preventDefault(); navigate("/builds/" + b.id);
           }}>View build</a>
         </div>
-        {!terminal.has(b.state) && <p>{b.stage || "Waiting to start"}</p>}
+        {!terminal.has(b.state) && <>
+          <p>{b.stage || "Waiting to start"}</p>
+          <BuildProgress build={b} />
+        </>}
       </article>
     );
     return (
@@ -612,7 +629,7 @@ export function App() {
                       </p>
                     ))}
                     <div className="row wrap">
-                      {b.artifacts.map((a: Value) => (
+                      {b.artifacts.filter((a: Value) => !/\.(log|blg)$/.test(a.name)).map((a: Value) => (
                         <button
                           key={a.name}
                           onClick={() =>
@@ -689,6 +706,8 @@ export function App() {
                         Delete
                       </button>
                     </div>
+                    <BuildProgress build={b} />
+                    {renderLogs(b)}
                   </article>
     );
   }

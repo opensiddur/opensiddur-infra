@@ -156,6 +156,36 @@ class ApiTests(unittest.TestCase):
             404,
         )
 
+    def test_private_running_log_download_and_share_exclusion(self):
+        row = self.submit()
+        artifact = self.objects.put(
+            "builds/private/worker.log", b"Private synthetic log", "text/plain"
+        )
+        self.app.state.builds.update(row["id"], artifacts=[artifact])
+        path = "/api/v1/builds/" + row["id"] + "/files/worker.log?redirect=false"
+        self.assertEqual(self.client.get(path, headers=self.headers).status_code, 200)
+        self.assertEqual(
+            self.client.get(
+                path, headers={"Authorization": "Bearer other"}
+            ).status_code,
+            404,
+        )
+        self.app.state.builds.finish(row["id"], "partial", artifacts=[artifact])
+        token = self.client.post(
+            "/api/v1/builds/" + row["id"] + "/share",
+            headers=self.headers,
+            json={"enabled": True},
+        ).json()["token"]
+        self.assertEqual(
+            self.client.get("/api/v1/shares/" + token).json()["artifacts"], []
+        )
+        self.assertEqual(
+            self.client.get(
+                "/api/v1/shares/" + token + "/files/worker.log"
+            ).status_code,
+            404,
+        )
+
     def test_cross_account_access_denied(self):
         row = self.submit()
         response = self.client.get(

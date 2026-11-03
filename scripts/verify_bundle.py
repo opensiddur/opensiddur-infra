@@ -44,7 +44,7 @@ class Outputs:
 settings = {
     "book": {"project": "infra_demo", "file_name": "index.xml"},
     "priority": {"transclusion": ["tanakh-wlc-he"]},
-    "distribution": {"notice": "none", "back_notice": "none"},
+    # Exercise the default notice/logo under the same restricted TeX policy as users.
 }
 store, outputs = MemoryStore(), Outputs()
 owner = str(uuid.uuid4())
@@ -91,9 +91,16 @@ for name in (
     "settings.yaml",
     "manifest.json",
     "software-notices.json",
+    "worker.log",
+    "pdf.log",
+    "logo.png",
 ):
     assert len(outputs.files.get(name, b"")) > 0, name
 assert outputs.files["book.pdf"].startswith(b"%PDF")
+pdf_step = next(step for step in finished["steps"] if step["id"] == "pdf")
+assert pdf_step["pass_number"] >= 1, pdf_step
+assert all(step["state"] == "succeeded" for step in finished["steps"]), finished["steps"]
+assert b"{logo.png}" in outputs.files["book.tex"], "TeX logo must remain portable and sandbox-compatible"
 print(
     "Actual unprivileged worker: catalog/preset validation, private SQLite, PDF, HTML, TeX, XML, ZIP and publication all passed"
 )

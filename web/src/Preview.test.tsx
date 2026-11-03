@@ -3,7 +3,7 @@ import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, act, waitFor } from "@testing-library/react";
 import { App } from "./App";
-import { api } from "./api";
+import { api, download } from "./api";
 import { parse } from "yaml";
 
 vi.mock("firebase/auth", () => ({
@@ -137,7 +137,7 @@ it("opens the submitted full build and polls through completion to downloads", a
     if (path === "/builds" && method === "POST") return data.type === "full" ? queued : { id: "preview" };
     if (path === "/builds/new-build") return ++polls === 1
       ? { ...queued, state: "running", stage: "Typesetting PDF" }
-      : { ...queued, state: "succeeded", stage: "Finished", artifacts: [{ name: "book.pdf" }] };
+      : { ...queued, state: "succeeded", stage: "Finished", artifacts: [{ name: "book.pdf" }, { name: "worker.log" }] };
     if (path === "/builds/preview") return { state: "cancelled", results: {} };
     return [];
   });
@@ -154,6 +154,8 @@ it("opens the submitted full build and polls through completion to downloads", a
   expect(submitted[2]).toMatchObject({ settings: { book: { project: "sample" } }, formats: ["pdf", "html"] });
   await act(async () => { await vi.advanceTimersByTimeAsync(2100); });
   expect(screen.getByText("Complete: Finished")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Download worker.log" }));
+  expect(vi.mocked(download)).toHaveBeenCalledWith("/builds/new-build/files/worker.log", "worker.log");
   expect(screen.getByRole("button", { name: "book.pdf" })).toBeTruthy();
   fireEvent.click(screen.getByRole("link", { name: "Builder" }));
   expect((screen.getByRole("combobox", { name: "Choose your starting text" }) as HTMLInputElement).value).toBe("Sample · Hebrew");

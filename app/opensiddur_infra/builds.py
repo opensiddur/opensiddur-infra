@@ -5,6 +5,8 @@ import time
 import uuid
 from datetime import datetime, timezone
 
+from .progress import build_steps
+
 TERMINAL = {"succeeded", "partial", "failed", "cancelled", "expired"}
 LIMITS = {
     "full": (5, 10800, 10800, 36000),
@@ -106,6 +108,7 @@ class Builds:
                 "asset": asset,
                 "state": "queued",
                 "stage": "queued",
+                "steps": build_steps(kind, formats),
                 "created": now,
                 "deadline": now + 86400,
                 "seconds": available,
@@ -218,13 +221,28 @@ class Builds:
                 values[slot_key]["ids"] = [
                     x for x in values[slot_key]["ids"] if x != identifier
                 ]
+            for step in row.get("steps", []):
+                if step["state"] == "running":
+                    step["state"] = "cancelled" if row["cancel"] else "failed"
+                elif step["state"] == "pending":
+                    step["state"] = "skipped"
             row.update(
                 state="cancelled" if row["cancel"] else state,
                 stage="finished",
                 finished=now,
                 expires=now + (30 * 86400 if row["type"] == "full" else 86400),
                 results=results or {},
-                artifacts=[] if row["cancel"] else artifacts or [],
+                artifacts=[]
+                if row["cancel"] or row.get("deleted")
+                else (
+                    artifacts
+                    if artifacts is not None
+                    else [
+                        item
+                        for item in row.get("artifacts", [])
+                        if item["name"].endswith((".log", ".blg"))
+                    ]
+                ),
                 elapsed=elapsed,
             )
             if row.get("deleted"):
