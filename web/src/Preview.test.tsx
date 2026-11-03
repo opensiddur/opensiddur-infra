@@ -219,10 +219,22 @@ it("loads saved presets and YAML files from Settings, preserving values and reje
   const saveFile = screen.getByRole("button", { name: "Save settings YAML" });
   expect(saveFile.parentElement).toBe(screen.getByRole("button", { name: "Save preset" }).parentElement);
   fireEvent.click(screen.getByRole("button", { name: "Save preset" }));
-  fireEvent.change(screen.getByRole("textbox", { name: "Preset name" }), { target: { value: "Imported" } });
+  fireEvent.change(screen.getByRole("combobox", { name: "Preset name" }), { target: { value: "Imported" } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await screen.findByText("Preset saved until you delete it.");
   const saved = vi.mocked(api).mock.calls.find(([path, method]) => path.startsWith("/presets/") && method === "PUT")!;
   expect(saved[2].asset).toBeNull();
   expect(saved[2].settings).toEqual(imported);
+  fireEvent.click(screen.getByRole("button", { name: "Save preset" }));
+  const overwrite = screen.getByRole("combobox", { name: "Preset name" });
+  fireEvent.focus(overwrite);
+  fireEvent.change(overwrite, { target: { value: "My saved" } });
+  fireEvent.keyDown(overwrite, { key: "Enter" });
+  fireEvent.click(screen.getByRole("button", { name: "Save" }));
+  await waitFor(() => expect(vi.mocked(api).mock.calls.some(([path, method]) => path === "/presets/saved" && method === "PUT")).toBe(true));
+  const replaced = vi.mocked(api).mock.calls.find(([path, method]) => path === "/presets/saved" && method === "PUT")!;
+  expect(replaced[2].settings).toEqual(imported);
+  expect(replaced[2].name).toBe("My saved settings");
+  await waitFor(() => expect(screen.queryByRole("combobox", { name: "Preset name" })).toBeNull());
+
 });

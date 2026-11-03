@@ -377,8 +377,9 @@ export function App() {
       setBuilding(false);
     }
   }
-  async function save(name: string) {
-    await api("/presets/" + crypto.randomUUID(), "PUT", {
+  async function save(name: string, existingId?: string) {
+    const id = existingId || crypto.randomUUID();
+    await api("/presets/" + id, "PUT", {
       name,
       settings,
       asset,
@@ -386,6 +387,7 @@ export function App() {
     });
     setPresets(await api("/presets"));
     setSavingPreset(false);
+    setLoadedPreset(id);
     setMessage("Preset saved until you delete it.");
   }
   function localFile(name: string, data: string) {
@@ -1218,7 +1220,8 @@ export function App() {
                   </button>
                 </div>
                 {savingPreset && (
-                  <PresetNameForm onSave={save} onCancel={() => setSavingPreset(false)}
+                  <PresetNameForm presets={presets} initialName={presets.find((preset) => preset.id === loadedPreset)?.name || ""}
+                    onSave={save} onCancel={() => setSavingPreset(false)}
                     disabled={!user || !hasConsent || !settings.book || hasPendingSettings || loadingSettings} />
                 )}
               </section>

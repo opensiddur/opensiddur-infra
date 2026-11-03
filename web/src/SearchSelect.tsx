@@ -43,6 +43,11 @@ export function SearchSelect({
   allowClear = false,
   labelClassName,
   required = false,
+  allowCustom = false,
+  textValue,
+  onTextChange,
+  maxLength,
+  autoFocus = false,
 }: {
   id?: string;
   label: string;
@@ -54,18 +59,24 @@ export function SearchSelect({
   allowClear?: boolean;
   labelClassName?: string;
   required?: boolean;
+  allowCustom?: boolean;
+  textValue?: string;
+  onTextChange?: (value: string) => void;
+  maxLength?: number;
+  autoFocus?: boolean;
 }) {
   const generated = useId();
   const inputId = id || generated;
   const listId = inputId + "-results";
-  const selectedLabel = options.find((o) => o.value === value)?.label || "";
-  const missingRequired = required && !options.some((option) => option.value === value);
+  const optionLabel = options.find((o) => o.value === value)?.label || "";
+  const selectedLabel = textValue ?? optionLabel;
+  const missingRequired = required && (allowCustom ? !selectedLabel.trim() : !options.some((option) => option.value === value));
   const [query, setQuery] = useState(selectedLabel);
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
-  const matches = searchMatches(options, query === selectedLabel ? "" : query);
+  const matches = searchMatches(options, allowCustom ? query : query === optionLabel && !!value ? "" : query);
   const shown = matches.slice(0, 8);
   const current = Math.min(active, Math.max(0, shown.length - 1));
   useEffect(() => setQuery(selectedLabel), [value, selectedLabel]);
@@ -87,7 +98,7 @@ export function SearchSelect({
       onBlur={(e) => {
         if (!e.currentTarget.contains(e.relatedTarget)) {
           setOpen(false);
-          setQuery(selectedLabel);
+          if (!allowCustom) setQuery(selectedLabel);
         }
       }}
     >
@@ -103,6 +114,8 @@ export function SearchSelect({
           aria-invalid={missingRequired || undefined}
           className={missingRequired ? "required-empty" : undefined}
           autoComplete="off"
+          maxLength={maxLength}
+          autoFocus={autoFocus}
           aria-autocomplete="list"
           aria-expanded={open}
           aria-controls={listId}
@@ -111,13 +124,14 @@ export function SearchSelect({
           }
           disabled={disabled}
           value={query}
-          placeholder="Search titles or editions…"
+          placeholder={allowCustom ? "Type a name or choose an existing preset…" : "Search titles or editions…"}
           onFocus={(e) => {
             setOpen(true);
             e.currentTarget.select();
           }}
           onChange={(e) => {
             setQuery(e.target.value);
+            onTextChange?.(e.target.value);
             setActive(0);
             setOpen(true);
           }}
@@ -136,8 +150,11 @@ export function SearchSelect({
                       Math.max(1, shown.length),
               );
             } else if (e.key === "Enter" && open) {
-              e.preventDefault();
-              if (shown[current]) select(shown[current]);
+              if (shown[current]) {
+                e.preventDefault();
+                select(shown[current]);
+              } else if (!allowCustom) e.preventDefault();
+              else setOpen(false);
             } else if (e.key === "Escape") {
               e.preventDefault();
               setOpen(false);
@@ -201,7 +218,7 @@ export function SearchSelect({
           <p className="search-status" role="status">
             {matches.length
               ? `${matches.length} match${matches.length === 1 ? "" : "es"}${matches.length > shown.length ? "; showing the top 8. Keep typing to narrow the list." : "."}`
-              : "No matching titles. Try another spelling."}
+              : allowCustom ? "New preset name. Save to create it." : "No matching titles. Try another spelling."}
           </p>
         </div>
       )}
