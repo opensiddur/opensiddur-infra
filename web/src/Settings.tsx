@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { Value } from "./api";
 import { Help, projectLabel } from "./BuilderControls";
 import { SearchSelect } from "./SearchSelect";
+import { SchemaField } from "./SchemaField";
 export { SchemaField, resolve } from "./SchemaField";
 export function Sources({
   label,
@@ -98,6 +99,7 @@ export function Declarations({
   onChange: (v: Value) => void;
 }) {
   const [openNames, setOpenNames] = useState<Record<string, string>>({});
+  const [extraNames, setExtraNames] = useState<Record<string, string[]>>({});
   const update = (group: string, feature: string, next: Value) => {
     const result = { ...(value || {}) };
     const features = { ...(result[group] || {}) };
@@ -110,8 +112,8 @@ export function Declarations({
     <section>
       <h3>Customs, calendar & conditional text</h3>
       <p className="hint">
-        Inherited leaves a choice unset. Undefined explicitly overrides a value
-        with undefined. True and false are separate choices.
+        Choose (default) to follow the source’s choice. Choose (undefined) to
+        clear an inherited value. Yes and No are explicit choices.
       </p>
       <select
         aria-label="Add setting group"
@@ -133,6 +135,7 @@ export function Declarations({
           ...new Set([
             ...Object.keys(definition.features || {}),
             ...Object.keys(entries as Value),
+            ...(extraNames[group] || []),
           ]),
         ];
         return (
@@ -150,90 +153,37 @@ export function Declarations({
               const current = (entries as Value)[feature];
               const label =
                 labels?.features?.[group]?.[feature]?.label || feature;
-              const state =
-                current === undefined
-                  ? "inherit"
-                  : current === null
-                    ? "undefined"
-                    : "set";
-              const edit = (next: Value) => update(group, feature, next);
-              return (
-                <div className="field" key={feature}>
-                  <label>
-                    {label}
-                    <select
-                      aria-label={`${group} ${feature} state`}
-                      value={
-                        kind === "binary"
-                          ? current === undefined
-                            ? "inherit"
-                            : current === null
-                              ? "undefined"
-                              : String(current)
-                          : state
-                      }
-                      onChange={(e) =>
-                        edit(
-                          e.target.value === "inherit"
-                            ? undefined
-                            : e.target.value === "undefined"
-                              ? null
-                              : kind === "binary"
-                                ? e.target.value === "true"
-                                : kind?.numeric
-                                  ? 0
-                                  : "",
-                        )
-                      }
-                    >
-                      <option value="inherit">(default)</option>
-                      <option value="undefined">Explicitly undefined</option>
-                      {kind === "binary" ? (
-                        <>
-                          <option value="true">True</option>
-                          <option value="false">False</option>
-                        </>
-                      ) : (
-                        <option value="set">Set a value</option>
-                      )}
-                    </select>
-                  </label>
-                  {state === "set" &&
-                    kind !== "binary" &&
-                    (kind?.symbol?.values ? (
-                      <select
-                        aria-label={label}
-                        value={current}
-                        onChange={(e) => edit(e.target.value)}
-                      >
-                        {kind.symbol.values.map((v: string) => (
-                          <option key={v}>{v}</option>
-                        ))}
-                      </select>
-                    ) : kind?.numeric ? (
-                      <input
-                        aria-label={label}
-                        type="number"
-                        min={kind.numeric.min}
-                        max={kind.numeric.max}
-                        step={kind.numeric.integer === false ? "any" : 1}
-                        value={current}
-                        onChange={(e) =>
-                          edit(
-                            e.target.value === ""
-                              ? null
-                              : Number(e.target.value),
-                          )
+              const scalar =
+                kind === "binary"
+                  ? { type: "boolean" }
+                  : kind?.symbol?.values
+                    ? { type: "string", enum: kind.symbol.values }
+                    : kind?.numeric
+                      ? {
+                          type:
+                            kind.numeric.integer === false
+                              ? "number"
+                              : "integer",
+                          ...(kind.numeric.min !== undefined
+                            ? { minimum: kind.numeric.min }
+                            : {}),
+                          ...(kind.numeric.max !== undefined
+                            ? { maximum: kind.numeric.max }
+                            : {}),
                         }
-                      />
-                    ) : (
-                      <input
-                        aria-label={label}
-                        value={current}
-                        onChange={(e) => edit(e.target.value)}
-                      />
-                    ))}
-                </div>
+                      : kind
+                        ? { type: "string" }
+                        : {};
+              return (
+                <SchemaField
+                  key={feature}
+                  label={label}
+                  root={{}}
+                  schema={{ anyOf: [scalar, { type: "null" }] }}
+                  value={current}
+                  onChange={(next) => update(group, feature, next)}
+                  advanced={false}
+                />
               );
             })}
             {definition.open && (
@@ -249,7 +199,13 @@ export function Declarations({
                 <button
                   onClick={() => {
                     const key = openNames[group]?.trim();
-                    if (key) update(group, key, null);
+                    if (key) {
+                      setExtraNames((old) => ({
+                        ...old,
+                        [group]: [...new Set([...(old[group] || []), key])],
+                      }));
+                      setOpenNames((old) => ({ ...old, [group]: "" }));
+                    }
                   }}
                 >
                   Add feature

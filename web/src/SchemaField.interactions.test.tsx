@@ -8,6 +8,7 @@ import {
   screen,
   within,
 } from "@testing-library/react";
+import { Declarations } from "./Settings";
 import {
   SchemaField,
   resolve,
@@ -232,4 +233,37 @@ describe("typed settings and defaults", () => {
     fireEvent.click(screen.getByRole("button", { name: "Add to list" }));
     expect(changed).toHaveBeenLastCalledWith([{ name: "Example Font" }]);
   });
+});
+
+it("edits Customs enums and numeric ranges directly without a Set-value activation step", () => {
+  const changed = vi.fn();
+  const registry = {
+    "opensiddur:example": {
+      features: {
+        count: { numeric: { min: 1, max: 3 } },
+        choice: { symbol: { values: ["first", "second"] } },
+      },
+    },
+  };
+  render(
+    <Declarations
+      registry={registry}
+      labels={{}}
+      value={{ "opensiddur:example": {} }}
+      onChange={changed}
+    />,
+  );
+  expect(changed).not.toHaveBeenCalled();
+  const count = screen.getByRole("combobox", { name: "count" });
+  pick(count, "2");
+  expect(changed).toHaveBeenLastCalledWith({
+    "opensiddur:example": { count: 2 },
+  });
+  const choice = screen.getByRole("combobox", { name: "choice" });
+  pick(choice, "second");
+  expect(changed).toHaveBeenLastCalledWith({
+    "opensiddur:example": { choice: "second" },
+  });
+  pick(choice, "(default)");
+  expect(changed).toHaveBeenLastCalledWith({ "opensiddur:example": {} });
 });
