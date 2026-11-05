@@ -37,22 +37,6 @@ for name, target in (
         ["git", "-C", str(target), "checkout", "--detach", "FETCH_HEAD"], check=True
     )
 
-# Overlay only the explicitly reviewed synthetic fixtures. Do not update the corpus
-# or compiler merely to add previews; each has its own immutable release boundary.
-import urllib.request
+from fetch_previews import fetch_previews
 
-previews = json.loads(Path("previews.lock.json").read_text())
-revision = previews["revision"]
-if len(revision) != 40 or any(c not in "0123456789abcdef" for c in revision):
-    raise SystemExit("Preview references must be full commit hashes")
-for language in ("he", "en"):
-    for relative in (
-        f"project/preview-{language}/index.xml",
-        f"project/preview-{language}/parallel.xml",
-        f"settings/preview-{language}/preview.yaml",
-    ):
-        url = f"https://raw.githubusercontent.com/opensiddur/opensiddur-projects/{revision}/{relative}"
-        target = processor / "opensiddur-projects" / relative
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with urllib.request.urlopen(url, timeout=60) as response:
-            target.write_bytes(response.read())
+fetch_previews(processor)

@@ -136,7 +136,19 @@ sequenceDiagram
 ```
 
 A preview uses the same admission and ownership rules, but dispatch routes it to
-an HTTP worker instead of starting a Job.
+an HTTP worker instead of starting a Job. It substitutes the synthetic
+`preview-he`/`preview-en` works for the selected work and source priorities,
+retaining typography, conditions and front-matter settings. Their separate
+`previews.lock.json` pins just those fixture files without updating the project
+corpus. The examples contain parallel and unpaired text, notes, title pages,
+headings, lists and fictional credits/bibliography.
+
+Build history is owner-authorized and sorted by creation time, newest first.
+New records save the work title at acceptance. Older records resolve it from their
+saved book title or project catalog entry. Samples contribute to quota counts but
+are excluded from the book history. Logs remain inside each build's Details.
+Information and errors use a dismissible bottom status line with expandable
+session history rather than modal dialogs.
 
 ### Acceptance is durable
 
@@ -190,6 +202,13 @@ Each run gets a fresh working directory and a copy of the prebuilt SQLite
 reference database. The upstream compiler can update its index while reading;
 sharing a writable index across builds would introduce contention and state
 leakage.
+
+The common image installs the pinned Open Siddur font pack (`fonts.lock.json`)
+and standard DejaVu, Liberation, Noto, FreeFont, Carlito and Caladea families.
+The catalog offers only installed, exactly resolved family names, grouped by
+Hebrew glyph support or standard Latin families. Consonant-only and partial
+fonts are distinct from fonts supporting vowel marks and cantillation. Per-font
+license documents are preserved in the image and software-notices page.
 
 The image also initializes the font-name index. PDF runs copy that index into a
 private writable cache, so discovering fonts does not require reading unrelated

@@ -104,3 +104,28 @@ All 35 backend tests and required GitHub checks pass, including cache isolation.
 The [old/new comparison](https://console.cloud.google.com/cloud-build/builds/47931d84-709f-4ac3-a1f8-02089dddf799?project=817628492067) rendered eight Hebrew fixtures and two small public Birnbaum excerpts in both images. A [separate narrow-column comparison](https://console.cloud.google.com/cloud-build/builds/cb42d45c-504f-4680-bcd5-f80ed70e67f8?project=817628492067) exercised reledmac/reledpar. Poppler-rendered review confirms the reversed parenthesis in the Birnbaum excerpt is corrected. Vowel-placement resolution is **not yet established**: the tested old/new samples look similar, and a specific word/mark is needed to isolate the reported difference. The full 809-page book has not been regenerated or visually revalidated.
 
 Deployed implementation `69fa865` as development release `dec665c2fbb91c9f7b70`. Live health, the 141-project catalog and software notices report that release; notices include the updated font package. A synthetic live PDF preview passed Cloud Tasks → API OIDC → worker → Firestore → Storage, and its temporary account/artifacts were removed. The browser bundle did not change. Production runtime and public-submission settings remain as described above. Existing PDFs require a new build to use the updated renderer.
+
+
+## Settings controls, synthetic previews and build history
+
+Local checks cover 39 backend tests and 50 browser-component tests. New history
+checks deliberately supply unordered records, verify newest-first ordering after
+polling, resolve legacy project titles, snapshot new work titles, and exclude
+another account's records. Measurement controls preserve numeric/unit types and
+unfinished drafts. Font groups, running-title grammar/help, actual declaration
+defaults, refresh format preservation, and dismissible status history have
+focused regression coverage.
+
+The synthetic preview works are tracked separately in opensiddur-projects
+[PR #100](https://github.com/opensiddur/opensiddur-projects/pull/100). All four XML
+files pass schema, feature, naming and URN-reference validation; the paired
+[registry PR #292](https://github.com/opensiddur/opensiddur-processor/pull/292)
+registers their two shared URNs without changing the runtime compiler. The exact pinned compiler compiles the
+Hebrew work with two parallel streams, an independent title page, lists and notes.
+The preview overlay preserves the existing compiler and corpus pins. English
+conditional material is in a separate English-language division, since merely
+marking a paragraph as English inside a mixed Hebrew division does not change
+the pinned renderer's stream direction.
+
+Deployment and actual-image verification for these changes are recorded below
+once complete. The earlier vowel-placement limitation remains unresolved.
