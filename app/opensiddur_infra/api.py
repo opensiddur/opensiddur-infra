@@ -134,6 +134,24 @@ def create_app(
             if not row or row["owner"] != owner:
                 raise HTTPException(422, "Logo not found")
 
+    project_titles = None
+
+    def work_title(settings):
+        nonlocal project_titles
+        book = settings.get("book") or {}
+        if book.get("title"):
+            return book["title"]
+        if project_titles is None:
+            project_titles = {
+                project["id"]: project["title"]
+                for project in processor.catalog().get("projects", [])
+            }
+        return (
+            project_titles.get(book.get("project"))
+            or book.get("project")
+            or "Untitled work"
+        )
+
     def public_build(build):
         return {
             k: v
@@ -156,10 +174,11 @@ def create_app(
                 "cancel",
             }
         } | {
+            "title": build.get("title") or work_title(build.get("settings") or {}),
             "artifacts": [
                 {k: a[k] for k in ("name", "size", "content_type")}
                 for a in build["artifacts"]
-            ]
+            ],
         }
 
     @app.get("/api/v1/health")
@@ -263,6 +282,7 @@ def create_app(
             data.type,
             data.idempotency_key,
             data.asset,
+            title=work_title(settings),
         )
         key = f"build:{build['id']}"
 
@@ -282,7 +302,11 @@ def create_app(
     def history(principal=Depends(authenticated)):
         return [
             public_build(b)
-            for b in store.list("build", principal.account_id)
+            for b in sorted(
+                store.list("build", principal.account_id),
+                key=lambda b: (b.get("created") or 0, b["id"]),
+                reverse=True,
+            )
             if b.get("expires", float("inf")) > time.time()
         ]
 

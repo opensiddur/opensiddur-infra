@@ -25,7 +25,9 @@ class Builds:
     def __init__(self, store, release, clock=time.time):
         self.store, self.release, self.clock = store, release, clock
 
-    def submit(self, owner, settings, formats, kind, idempotency, asset=None):
+    def submit(
+        self, owner, settings, formats, kind, idempotency, asset=None, title=None
+    ):
         if kind not in LIMITS:
             raise Rejected("Unknown build type", 422)
         now = self.clock()
@@ -104,6 +106,7 @@ class Builds:
                 "type": kind,
                 "release": self.release,
                 "settings": settings,
+                "title": title or (settings.get("book") or {}).get("title"),
                 "formats": formats,
                 "asset": asset,
                 "state": "queued",

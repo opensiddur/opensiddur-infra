@@ -5,11 +5,10 @@ import uuid
 from dataclasses import replace
 
 from fastapi.testclient import TestClient
-from PIL import Image
-
 from opensiddur_infra.api import create_app
 from opensiddur_infra.config import Config
 from opensiddur_infra.store import MemoryStore
+from PIL import Image
 
 
 class Verifier:
@@ -30,7 +29,10 @@ class Verifier:
 
 class Processor:
     def catalog(self):
-        return {"release": "test", "projects": []}
+        return {
+            "release": "test",
+            "projects": [{"id": "synthetic", "title": "Synthetic Prayerbook"}],
+        }
 
     def schema(self):
         return {"type": "object"}
@@ -98,6 +100,50 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 202, response.text)
         return response.json()
+
+    def test_history_is_newest_first_and_resolves_legacy_work_titles(self):
+        owner = self.client.get("/api/v1/account", headers=self.headers).json()["id"]
+        rows = {
+            "build:older": {
+                "kind": "build",
+                "owner": owner,
+                "id": "older",
+                "created": 10,
+                "settings": {"book": {"project": "synthetic"}},
+                "artifacts": [],
+            },
+            "build:newer": {
+                "kind": "build",
+                "owner": owner,
+                "id": "newer",
+                "created": 30,
+                "title": "Saved work title",
+                "settings": {"book": {"project": "synthetic"}},
+                "artifacts": [],
+            },
+            "build:someone-else": {
+                "kind": "build",
+                "owner": "other-account",
+                "id": "someone-else",
+                "created": 40,
+                "title": "Private other work",
+                "artifacts": [],
+            },
+        }
+        self.store.atomic(list(rows), lambda values: values.update(rows))
+        response = self.client.get("/api/v1/builds", headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            [(row["id"], row["title"]) for row in response.json()],
+            [("newer", "Saved work title"), ("older", "Synthetic Prayerbook")],
+        )
+
+    def test_new_build_records_the_work_title(self):
+        result = self.submit()
+        self.assertEqual(result["title"], "Synthetic Prayerbook")
+        self.assertEqual(
+            self.store.get("build:" + result["id"])["title"], "Synthetic Prayerbook"
+        )
 
     def test_authentication_and_public_catalog(self):
         self.assertEqual(self.client.get("/api/v1/catalog").status_code, 200)

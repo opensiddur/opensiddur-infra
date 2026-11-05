@@ -690,3 +690,6 @@ legend { padding: 0 6px; font-weight: 600; }
 }
 .field-error { color: #a3261b; overflow-wrap: anywhere; }
 @media (prefers-color-scheme: dark) { .field-error { color: #ffaaa2; } }
+.measurement-row { display: flex; align-items: center; gap: 10px; }
+.measurement-row input { flex: 1; min-width: 0; }
+.measurement-row select { width: 85px; flex-shrink: 0; }

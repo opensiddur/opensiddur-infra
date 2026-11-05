@@ -1,3 +1,4 @@
+import { MeasurementField, measurementModel } from "./MeasurementField";
 import { FontSelect, RunningHeadHelp, TypographyMetadata, templateError } from "./TypographyControls";
 import { RequiredMark } from "./RequiredMark";
 import { createContext, useContext, useEffect, useId, useState } from "react";
@@ -496,6 +497,14 @@ function SchemaFieldInner({
   if (fontRoot >= 0 && path.includes("names") && path.at(-1) === "name") {
     return <FontSelect id={id} label={fieldLabel} value={value} family={path[fontRoot + 1]}
       catalog={metadata.fonts} onChange={onChange} required={isRequired} />;
+  }
+  const numericPoints = fontRoot >= 0 && path.at(-1) === "normal_size";
+  const measurement = measurementModel(model.variants);
+  if (measurement || numericPoints) {
+    return <MeasurementField id={id} label={label} value={value} defaultValue={s.default}
+      model={measurement || { units: ["pt"], patterns: [] }} named={literals.filter((v: Value) => typeof v === "string")}
+      nullable={model.nullable} required={isRequired} numericPoints={numericPoints} schema={s}
+      onChange={onChange} reportPending={reportPending} />;
   }
   const range =
     s.type === "integer" || s.type === "number" ? numericChoices(s) : null;

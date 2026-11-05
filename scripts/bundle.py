@@ -85,17 +85,15 @@ source = (
             "release": release,
             **lock,
             "fonts": json.loads(Path("fonts.lock.json").read_text()),
+            "previews": json.loads(Path("previews.lock.json").read_text()),
             **source,
         },
         indent=2,
     )
 )
-# Fixed, bounded demonstration; only its text source has a declared fallback.
-demo = projects / "infra_demo"
-demo.mkdir(exist_ok=True)
-(demo / "index.xml").write_text(
-    """<tei:TEI xmlns:tei="http://www.tei-c.org/ns/1.0" xmlns:j="http://jewishliturgy.org/ns/jlptei/2" xml:lang="he"><tei:teiHeader><tei:fileDesc><tei:titleStmt><tei:title>Open Siddur settings demonstration</tei:title></tei:titleStmt><tei:publicationStmt><tei:availability><tei:licence target="https://creativecommons.org/publicdomain/zero/1.0/">Demonstration wrapper: CC0.</tei:licence></tei:availability></tei:publicationStmt><tei:sourceDesc><tei:p>Text sources are credited in the generated colophon.</tei:p></tei:sourceDesc></tei:fileDesc></tei:teiHeader><tei:text><tei:body><tei:div><tei:head xml:lang="en">Settings demonstration · Psalm 23</tei:head><tei:p><tei:note type="editorial" xml:lang="en">This is a fixed sample. Source priorities apply where the selected editions contain Psalm 23. The sample uses WLC as an explicit fallback.</tei:note></tei:p><j:transclude target="urn:x-opensiddur:text:bible:psalms/23" type="external"/><j:conditional xml:id="sample_minyan"><tei:fs type="opensiddur:quorum"><tei:f name="minyan"><tei:binary value="true"/></tei:f></tei:fs></j:conditional><tei:p xml:lang="en">A demonstration passage shown when a minyan is selected.</tei:p><j:endConditional target="#sample_minyan"/></tei:div></tei:body></tei:text></tei:TEI>"""
-)
+# Preview works are versioned with all other projects, not generated inside the image.
+for name in ("preview-he", "preview-en"):
+    assert (projects / name / "index.xml").is_file(), f"Missing preview work: {name}"
 from notices import generate
 
 (bundle / "notices.json").write_text(

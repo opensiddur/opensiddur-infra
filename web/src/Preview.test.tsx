@@ -74,8 +74,8 @@ it("saves and renames presets without prompts and keeps build history in its own
     if (path === "/account") return { consent: { version: "test" }, consent_version: "test", allowances: { samples: { html: { used: 3, limit: 300 }, pdf: { used: 1, limit: 10 } } } };
     if (path === "/presets") return presets;
     if (path === "/builds") return [
-      { id: "synthetic-history", type: "full", state: "succeeded", stage: "Finished", artifacts: [{ name: "book.pdf" }] },
-      { id: "active-history", type: "full", state: "running", stage: "Compiling active text", artifacts: [] },
+      { id: "synthetic-history", title: "Synthetic work", type: "full", state: "succeeded", stage: "Finished", artifacts: [{ name: "book.pdf" }] },
+      { id: "active-history", title: "Active work", type: "full", state: "running", stage: "Compiling active text", artifacts: [] },
       { id: "hidden-sample", type: "html", state: "running", stage: "Sample-only stage", artifacts: [] },
     ];
     if (path.startsWith("/presets/") && method === "PUT") { presets = [{ ...data, id: path.split("/").pop() }]; return {}; }
@@ -106,11 +106,11 @@ it("saves and renames presets without prompts and keeps build history in its own
   fireEvent.click(screen.getByRole("link", { name: "Build history" }));
   expect(window.location.pathname).toBe("/builds");
   expect(screen.getByRole("heading", { name: "Build history" })).toBeTruthy();
-  expect(screen.getByText("Book · Complete")).toBeTruthy();
+  expect(screen.getByText("Synthetic work · Complete")).toBeTruthy();
   expect(screen.getByText("Samples today: 3 of 300 text; 1 of 10 print.")).toBeTruthy();
   expect(screen.queryByText("Sample-only stage")).toBeNull();
   expect(screen.getAllByRole("link", { name: "View build" })).toHaveLength(2);
-  expect(screen.getByText("Book · Running")).toBeTruthy();
+  expect(screen.getByText("Active work · Running")).toBeTruthy();
   expect(screen.getByText("Compiling active text")).toBeTruthy();
   expect(screen.queryByText("Finished")).toBeNull();
   expect(screen.queryByRole("button", { name: "book.pdf" })).toBeNull();
@@ -285,8 +285,8 @@ it("keeps history logs inside collapsed details for active and finished builds",
     if (path === "/schema") return { properties: {} };
     if (path === "/account") return { consent: { version: "test" }, consent_version: "test" };
     if (path === "/builds") return [
-      { id: "active", type: "full", state: "running", stage: "Typesetting", artifacts: [{ name: "worker.log" }] },
-      { id: "finished", type: "full", state: "failed", stage: "Private failure details", artifacts: [{ name: "pdf.log" }] },
+      { id: "active", title: "Active work", type: "full", state: "running", stage: "Typesetting", artifacts: [{ name: "worker.log" }] },
+      { id: "finished", title: "Finished work", type: "full", state: "failed", stage: "Private failure details", artifacts: [{ name: "pdf.log" }] },
     ];
     return [];
   });
@@ -294,8 +294,8 @@ it("keeps history logs inside collapsed details for active and finished builds",
   for (const log of screen.getAllByRole("button", { name: /Download .*\.log/ })) {
     expect((log.closest("details") as HTMLDetailsElement).open).toBe(false);
   }
-  const active = within(screen.getByText("Book · Running").closest("article")!);
-  const finished = within(screen.getByText("Book · Failed").closest("article")!);
+  const active = within(screen.getByText("Active work · Running").closest("article")!);
+  const finished = within(screen.getByText("Finished work · Failed").closest("article")!);
   for (const [entry, id, filename] of [[active, "active", "worker.log"], [finished, "finished", "pdf.log"]] as const) {
     fireEvent.click(entry.getByText("Details", { selector: "summary" }));
     fireEvent.click(entry.getByRole("button", { name: "Download " + filename }));
@@ -305,4 +305,25 @@ it("keeps history logs inside collapsed details for active and finished builds",
   }
   expect(screen.queryByText("Private failure details")).toBeNull();
   expect(finished.queryByText("Detailed steps were not recorded for this build yet.")).toBeNull();
+});
+
+it("sorts work titles newest first on initial load and after polling", async () => {
+  vi.useFakeTimers();
+  window.history.replaceState({}, "", "/builds");
+  let reads = 0;
+  const older = { id: "older", title: "Older work", created: 10, type: "full", state: "succeeded", artifacts: [] };
+  const newer = { id: "newer", title: "Newer work", created: 20, type: "full", state: "succeeded", artifacts: [] };
+  const newest = { id: "newest", title: "Newest work", created: 30, type: "full", state: "running", artifacts: [] };
+  vi.mocked(api).mockImplementation(async path => {
+    if (path === "/catalog") return { release: "synthetic", features: {}, projects: [] };
+    if (path === "/schema") return { properties: {} };
+    if (path === "/account") return {};
+    if (path === "/builds") return ++reads === 1 ? [older, newer] : [older, newest, newer];
+    return [];
+  });
+  await act(async () => { render(<App />); });
+  const titles = () => Array.from(document.querySelectorAll("article strong")).map(node => node.textContent);
+  expect(titles()).toEqual(["Newer work · Complete", "Older work · Complete"]);
+  await act(async () => { await vi.advanceTimersByTimeAsync(10000); });
+  expect(titles()).toEqual(["Newest work · Running", "Newer work · Complete", "Older work · Complete"]);
 });

@@ -52,8 +52,8 @@ def main():
     )
     builds = Builds(store, args.release)
     settings = {
-        "book": {"project": "infra_demo", "file_name": "index.xml"},
-        "priority": {"transclusion": ["tanakh-wlc-he"]},
+        "book": {"project": "preview-he", "file_name": "index.xml"},
+        "priority": {"transclusion": ["preview-he", "preview-en"]},
         "distribution": {"notice": "none", "back_notice": "none"},
     }
     row = builds.submit(

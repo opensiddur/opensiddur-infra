@@ -406,7 +406,8 @@ export function App() {
     : "");
   const buildBlocker = previewBlocker || (!formats.some((format) => advanced || ["pdf", "html"].includes(format))
       ? "Select at least one output format before building." : "");
-  const fullHistory = history.filter((row) => row.type === "full");
+  const fullHistory = history.filter((row) => row.type === "full").sort((a, b) =>
+    (Number(b.created) || 0) - (Number(a.created) || 0) || String(b.id).localeCompare(String(a.id)));
   const projects = catalog?.projects || [],
     selected = projects.find((p: Value) => p.id === settings.book?.project);
   const guided =
@@ -595,7 +596,7 @@ export function App() {
     if (compact) return (
       <article className="card" key={b.id}>
         <div className="row wrap">
-          <strong>{b.type === "full" ? "Book" : "Sample"} · {buildStatus(b.state)}</strong>
+          <strong>{b.title || "Untitled work"} · {buildStatus(b.state)}</strong>
           {b.created && <time dateTime={new Date(b.created * 1000).toISOString()}>{new Date(b.created * 1000).toLocaleString()}</time>}
           <a href={"/builds/" + b.id} onClick={(event) => {
             event.preventDefault(); navigate("/builds/" + b.id);
@@ -610,7 +611,7 @@ export function App() {
       <article className="card" key={b.id}>
                     <div className="row">
                       <strong>
-                        {b.type === "full" ? "Book" : "Sample"} · {buildStatus(b.state)}
+                        {b.title || "Untitled work"} · {buildStatus(b.state)}
                       </strong>
                       <code>{b.id}</code>
                       {path !== "/builds/" + b.id && <a href={"/builds/" + b.id} onClick={(e) => {
@@ -1326,13 +1327,11 @@ export function App() {
               <section className="card preview">
                 <h2>Preview your settings</h2>
                 <p className="hint">
-                  This short Psalm 23 sample updates as you edit. Print preview
-                  shows the typeset page layout; text preview shows reflowing
-                  HTML and does not apply page or parallel-layout settings.
-                  Pairs and facing pages need a matching translation. If your chosen
-                  sources do not contain the passage, the sample uses a Hebrew
-                  Bible text. Title pages and some notes appear only in the full
-                  book.
+                  These synthetic Hebrew and English preview works demonstrate
+                  title pages, headings, lists, notes, and paired and unpaired text.
+                  Print preview shows typeset pages; text preview shows reflowing HTML.
+                  Preview sources are supplied automatically. Your chosen source
+                  priorities apply when you build the complete book.
                 </p>
                 <label>
                   Preview format

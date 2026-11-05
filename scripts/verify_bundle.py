@@ -1,3 +1,4 @@
+
 """Exercise the real unprivileged worker, including all four output types and ZIP publication."""
 
 import json
@@ -8,6 +9,7 @@ import uuid
 from dataclasses import replace
 from pathlib import Path
 
+from lxml import etree
 from opensiddur.exporter.derived_settings import STATIC_DEFAULTS
 from opensiddur.exporter.settings import validate_settings
 from opensiddur.exporter.typography import resolve_font
@@ -67,8 +69,9 @@ class Outputs:
 
 
 settings = {
-    "book": {"project": "infra_demo", "file_name": "index.xml"},
-    "priority": {"transclusion": ["tanakh-wlc-he"]},
+    "book": {"project": "preview-he", "file_name": "index.xml"},
+    "priority": {"transclusion": ["preview-he", "preview-en"]},
+    "parallel": {"projects": ["preview-he", "preview-en"]},
     # Exercise the default notice/logo under the same restricted TeX policy as users.
 }
 store, outputs = MemoryStore(), Outputs()
@@ -134,9 +137,17 @@ tex = outputs.files["book.tex"].decode()
 sample_text = "A demonstration passage shown when a minyan is selected."
 sample_position = tex.index(sample_text)
 assert r"\setdefaultlanguage{english}" in tex
-assert tex.rfind(r"\begin{hebrew}", 0, sample_position) < tex.rfind(
-    r"\end{hebrew}", 0, sample_position
-), "English sample text must be outside the RTL Hebrew stream"
+prefix = tex[:sample_position]
+assert prefix.count(r"\begin{hebrew}") == prefix.count(r"\end{hebrew}"), (
+    "English sample text must be outside the RTL Hebrew stream"
+)
+xml = etree.fromstring(outputs.files["compiled-print.xml"])
+assert xml.xpath("//*[local-name()='parallel']"), (
+    "Preview must exercise parallel layout"
+)
+assert xml.xpath("//*[local-name()='titlePage']"), "Preview must exercise title pages"
+assert xml.xpath("//*[local-name()='list']"), "Preview must exercise lists"
+
 
 # Exercise the real Lua IO policy as the unprivileged image user. New TeX needs
 # installed Unicode tables, but must not gain access to credentials or other runs.

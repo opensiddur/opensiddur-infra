@@ -145,17 +145,38 @@ def execute(identifier, config=None, store=None, storage=None):
                         yaml.safe_dump(portable, allow_unicode=True, sort_keys=False)
                     )
             if row["type"] != "full":
-                settings["book"] = {"project": "infra_demo", "file_name": "index.xml"}
-                # The demonstration explicitly includes a fallback source; full builds do not.
-                priorities = settings.setdefault("priority", {}).setdefault(
-                    "transclusion", []
+                catalog = json.loads((Path(config.bundle) / "catalog.json").read_text())
+                original = row["settings"]["book"]["project"]
+                language = next(
+                    (
+                        p.get("language", "")
+                        for p in catalog["projects"]
+                        if p["id"] == original
+                    ),
+                    "he",
                 )
-                for source in (row["settings"]["book"]["project"], "tanakh-wlc-he"):
-                    if source not in priorities:
-                        priorities.append(source)
-                settings.setdefault("declarations", {}).setdefault(
-                    "opensiddur:paratext", {}
-                ).update({"title-page": False, "include": False})
+                primary = (
+                    "preview-he"
+                    if language.split("-")[0] in {"he", "yi", "arc"}
+                    and "Latn" not in language
+                    else "preview-en"
+                )
+                sources = [
+                    primary,
+                    "preview-en" if primary == "preview-he" else "preview-he",
+                ]
+                settings["book"] = {
+                    **settings["book"],
+                    "project": primary,
+                    "file_name": "index.xml",
+                }
+                for key in ("transclusion", "instructions"):
+                    priority = settings.setdefault("priority", {})
+                    priority[key] = list(dict.fromkeys(sources + priority.get(key, [])))
+                settings.setdefault("parallel", {})["projects"] = sources
+                settings["annotations"] = list(
+                    dict.fromkeys(sources + settings.get("annotations", []))
+                )
             settings_file = work / "settings.yaml"
             settings_file.write_text(
                 yaml.safe_dump(settings, allow_unicode=True, sort_keys=False)
@@ -231,11 +252,12 @@ def execute(identifier, config=None, store=None, storage=None):
                             except (OSError, ValueError):
                                 pass
                         if process.returncode:
-                            if (
-                                os.getenv("SAMPLE_DIAGNOSTICS") == "true"
-                                and row["settings"].get("book", {}).get("project")
-                                == "infra_demo"
-                            ):
+                            if os.getenv("SAMPLE_DIAGNOSTICS") == "true" and row[
+                                "settings"
+                            ].get("book", {}).get("project") in {
+                                "preview-he",
+                                "preview-en",
+                            }:
                                 print(
                                     (work / "worker.log").read_text(errors="replace")[
                                         -6000:
@@ -354,7 +376,7 @@ def execute(identifier, config=None, store=None, storage=None):
             )
             if row["type"] != "full":
                 manifest["sample_notice"] = (
-                    "Fixed Psalm 23 demonstration; WLC fallback and front-matter overrides apply only to this sample. Selected sources may have no coverage."
+                    "Synthetic Hebrew/English preview works with paired and unpaired text. Preview source selections are substituted; full builds use your selected sources."
                 )
             (out / "manifest.json").write_text(json.dumps(manifest, indent=2))
             if row["type"] == "full":

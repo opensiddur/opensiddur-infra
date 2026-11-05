@@ -13,6 +13,7 @@ def release_identity():
             "uv.lock",
             "releases.lock.json",
             "fonts.lock.json",
+            "previews.lock.json",
             "web/package-lock.json",
         )
     ]
