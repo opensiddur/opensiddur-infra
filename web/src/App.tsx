@@ -23,6 +23,7 @@ import { BuildProgress } from "./BuildProgress";
 import { RequiredMark } from "./RequiredMark";
 import { PresetNameForm } from "./PresetNameForm";
 import { SettingsEditContext } from "./SchemaField";
+import { StatusUpdates, useStatusUpdates } from "./StatusUpdates";
 import "./style.css";
 const terminal = new Set([
   "succeeded",
@@ -48,8 +49,6 @@ export function App() {
     [user, setUser] = useState<User | null>(null),
     [account, setAccount] = useState<Value>(),
     [email, setEmail] = useState(sessionStorage.getItem("loginEmail") || ""),
-    [message, setMessage] = useState(""),
-    [error, setError] = useState(""),
     [tab, setTab] = useState("Sources"),
     [advanced, setAdvanced] = useState(
       () => localStorage.getItem("builder-advanced") === "true",
@@ -67,6 +66,8 @@ export function App() {
     [asset, setAsset] = useState<string | null>(null),
     [notice, setNotice] = useState<Value>(),
     [share, setShare] = useState<Value>();
+  const updates = useStatusUpdates();
+  const setMessage = updates.info, setError = updates.error;
   const [currentBuild, setCurrentBuild] = useState<Value>();
   const [buildError, setBuildError] = useState("");
   const [building, setBuilding] = useState(false);
@@ -151,7 +152,6 @@ export function App() {
     setError(e instanceof Error ? e.message : String(e));
   }
   async function action(fn: () => Promise<unknown>) {
-    setError("");
     try {
       await fn();
     } catch (e) {
@@ -190,8 +190,7 @@ export function App() {
       setPreviewStatus("Sign in to see a sample");
       setSettings({});
       setAsset(null);
-      setMessage("");
-      setError("");
+      updates.reset();
     }
   }, [user]);
   useEffect(() => {
@@ -1383,10 +1382,10 @@ export function App() {
                   aria-describedby="preview-requirement"
                   onClick={() => {
                     if (!user || !hasConsent) openAccount();
-                    else { setPreviewMode("pdf"); refreshPreview((n) => n + 1); }
+                    else refreshPreview((n) => n + 1);
                   }}
                 >
-                  Update print sample
+                  {previewMode === "pdf" ? "Update print sample" : "Update text sample"}
                 </button>
               </section>
             </div>
@@ -1395,18 +1394,7 @@ export function App() {
 
         </>
       )}
-      {message && (
-        <div className="toast" role="status">
-          {message}
-          <button onClick={() => setMessage("")}>Dismiss</button>
-        </div>
-      )}
-      {error && (
-        <div className="toast error" role="alert">
-          {error}
-          <button onClick={() => setError("")}>Dismiss</button>
-        </div>
-      )}
+      <StatusUpdates current={updates.current} history={updates.history} onDismiss={updates.dismiss} />
       <footer>
         <a href="https://opensiddur.org/">the Open Siddur Project</a>
         <a href="/privacy">Privacy</a>

@@ -293,7 +293,7 @@ it("explains missing settings and sends Build and preview to account setup when 
   fireEvent.click(build);
   expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();
   fireEvent.click(screen.getByRole("link", { name: "← Return to the builder" }));
-  const preview = screen.getByRole("button", { name: "Update print sample" });
+  const preview = screen.getByRole("button", { name: "Update text sample" });
   expect(preview.hasAttribute("disabled")).toBe(false);
   fireEvent.click(preview);
   expect(screen.getByRole("heading", { name: "Sign in" })).toBeTruthy();

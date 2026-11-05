@@ -240,3 +240,37 @@ it("loads saved presets and YAML files from Settings, preserving values and reje
   await waitFor(() => expect(screen.queryByRole("combobox", { name: "Preset name" })).toBeNull());
 
 });
+
+it.each(["html", "pdf"] as const)("refreshes the selected %s sample without switching its format", async (mode) => {
+  vi.useFakeTimers();
+  vi.mocked(api).mockClear();
+  window.history.replaceState({}, "", "/");
+  let count = 0;
+  vi.mocked(api).mockImplementation(async (path, method) => {
+    if (path === "/catalog") return { release: "synthetic", features: {}, projects: [
+      { id: "sample", title: "Sample", language: "he", files: ["index.xml"], presets: [] },
+    ] };
+    if (path === "/schema") return { properties: {} };
+    if (path === "/account") return { consent: { version: "test" }, consent_version: "test", allowances: { pdf_samples_remaining: 10 } };
+    if (path === "/builds" && method === "POST") return { id: "sample-" + ++count };
+    if (path.startsWith("/builds/")) return { state: "succeeded" };
+    return [];
+  });
+  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, text: async () => "<p>Sample</p>", blob: async () => new Blob(["%PDF-synthetic"]) })));
+  vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: vi.fn(() => "blob:sample-" + count), revokeObjectURL: vi.fn() }));
+  await act(async () => { render(<App />); });
+  const title = screen.getByRole("combobox", { name: "Choose your starting text" });
+  fireEvent.focus(title);
+  fireEvent.change(title, { target: { value: "Sample" } });
+  fireEvent.keyDown(title, { key: "Enter" });
+  const format = screen.getByRole("combobox", { name: "Preview format" }) as HTMLSelectElement;
+  fireEvent.change(format, { target: { value: mode } });
+  await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
+  fireEvent.click(screen.getByRole("button", { name: mode === "html" ? "Update text sample" : "Update print sample" }));
+  await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
+  expect(format.value).toBe(mode);
+  const submissions = vi.mocked(api).mock.calls.filter(([path, method]) => path === "/builds" && method === "POST");
+  expect(submissions).toHaveLength(2);
+  expect(submissions.map(call => [call[2].type, call[2].formats])).toEqual([[mode, [mode]], [mode, [mode]]]);
+  expect(mode === "html" ? screen.getByTitle("Settings demonstration") : screen.getByLabelText("Print settings demonstration")).toBeTruthy();
+});

@@ -376,25 +376,43 @@ li button {
   padding: 5px 8px;
   margin-right: 5px;
 }
-.toast {
+/* Reserve space so the nonmodal update line does not cover page controls. */
+body { padding-bottom: 64px; }
+.status-updates {
   position: fixed;
-  bottom: 15px;
-  left: 5%;
-  right: 5%;
+  bottom: 0;
+  left: 0;
+  right: 0;
   background: var(--surface);
-  border: 2px solid var(--link);
-  padding: 16px;
+  border-top: 1px solid var(--border);
   z-index: 10;
-  overflow-wrap: anywhere;
-  box-shadow: 0 4px 20px #0002;
+  font-size: 14px;
 }
-.toast button {
-  margin-left: 15px;
+.update-line, .update-history-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 16px;
 }
-.toast.error {
-  border-color: #a3261b;
-  bottom: 90px;
+.update-line p {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+.update-line button { flex-shrink: 0; }
+.update-history { max-height: 45vh; overflow-y: auto; border-bottom: 1px solid var(--border); }
+.update-history-heading h2 { margin: 0; font-size: 16px; }
+.update-history ol { list-style: none; margin: 0; padding: 0 16px 12px; }
+.update-history li { display: flex; gap: 12px; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
+.update-history time { flex-shrink: 0; color: var(--muted); }
+.update-history li > span { margin: 0; min-width: 0; }
+.update-history li > button { margin-left: auto; flex-shrink: 0; align-self: flex-start; }
+.update-error { color: #a3261b; }
+@media (prefers-color-scheme: dark) { .update-error { color: #ffaaa2; } }
 footer {
   display: flex;
   justify-content: center;
