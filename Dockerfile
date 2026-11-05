@@ -1,6 +1,6 @@
 FROM python:3.12-slim-trixie AS common
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BUNDLE_DIR=/opt/bundle PROCESSOR_DIR=/opt/processor
-RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates fontconfig fonts-culmus fonts-linuxlibertine fonts-sil-ezra fonts-freefont-otf && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates fontconfig fonts-culmus fonts-linuxlibertine fonts-sil-ezra fonts-freefont-otf fonts-dejavu-core fonts-dejavu-extra fonts-liberation fonts-noto-core fonts-crosextra-carlito fonts-crosextra-caladea && rm -rf /var/lib/apt/lists/*
 RUN pip install --no-cache-dir uv==0.12.21
 WORKDIR /opt/infra
 COPY pyproject.toml uv.lock ./
@@ -13,6 +13,7 @@ RUN python scripts/fetch_sources.py /opt/processor && \
     uv pip install --python .venv/bin/python --no-deps -e /opt/processor && \
     uv pip install --python .venv/bin/python --no-deps -e . && uv pip check --python .venv/bin/python
 ENV PATH="/opt/infra/.venv/bin:$PATH"
+RUN python scripts/install_fonts.py
 RUN python scripts/bundle.py && python -m opensiddur.exporter.refdb
 RUN useradd --uid 10001 --create-home builder && chmod -R a+rX /opt/processor /opt/bundle
 USER builder

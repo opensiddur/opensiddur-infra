@@ -8,8 +8,9 @@ import uuid
 from dataclasses import replace
 from pathlib import Path
 
-from opensiddur.exporter.settings import validate_settings
 from opensiddur.exporter.derived_settings import STATIC_DEFAULTS
+from opensiddur.exporter.settings import validate_settings
+from opensiddur.exporter.typography import resolve_font
 from opensiddur_infra.api import create_app
 from opensiddur_infra.builds import Builds
 from opensiddur_infra.config import Config
@@ -27,7 +28,22 @@ projects = processor / "opensiddur-projects/project"
 bundle = Path(os.environ.get("BUNDLE_DIR", "/opt/bundle"))
 catalog = json.loads((bundle / "catalog.json").read_text())
 assert catalog["projects"], "Empty catalog"
-assert catalog["declaration_defaults"] == STATIC_DEFAULTS, "Customs defaults must match the pinned compiler"
+assert catalog["declaration_defaults"] == STATIC_DEFAULTS, (
+    "Customs defaults must match the pinned compiler"
+)
+font_catalog = catalog["font_catalog"]
+assert font_catalog["hebrew"] and font_catalog["latin"][0]["fonts"]
+for family in font_catalog["installed"]:
+    assert resolve_font([family]) == family, family
+font_manifest = json.loads(
+    Path("/usr/share/doc/opensiddur-font-pack/manifest.json").read_text()
+)
+assert (
+    font_manifest["revision"]
+    == json.loads(Path("fonts.lock.json").read_text())["revision"]
+)
+for relative in font_manifest["installed"]:
+    assert (Path("/usr/share/fonts/opensiddur-pack") / relative).is_file(), relative
 for project in catalog["projects"]:
     for preset in project["presets"]:
         validate_settings(preset["settings"], project_directory=projects)
@@ -114,6 +130,12 @@ assert all(step["state"] == "succeeded" for step in finished["steps"]), finished
 assert b"{logo.png}" in outputs.files["book.tex"], (
     "TeX logo must remain portable and sandbox-compatible"
 )
+tex = outputs.files["book.tex"].decode()
+sample_text = "A demonstration passage shown when a minyan is selected."
+sample_position = tex.index(sample_text)
+assert tex.rfind(r"\begin{english}", 0, sample_position) > tex.rfind(
+    r"\end{english}", 0, sample_position
+), "English sample text must have an LTR language stream"
 
 # Exercise the real Lua IO policy as the unprivileged image user. New TeX needs
 # installed Unicode tables, but must not gain access to credentials or other runs.

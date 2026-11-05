@@ -1,3 +1,4 @@
+import { FontSelect, RunningHeadHelp, TypographyMetadata, templateError } from "./TypographyControls";
 import { RequiredMark } from "./RequiredMark";
 import { createContext, useContext, useEffect, useId, useState } from "react";
 export const SettingsEditContext = createContext<
@@ -152,7 +153,12 @@ export function numericChoices(
 const objectValue = (value: Value) =>
   value && typeof value === "object" && !Array.isArray(value) ? value : {};
 
-export function SchemaField({
+const FieldPath = createContext<string[]>([]);
+export function SchemaField(props: Parameters<typeof SchemaFieldInner>[0]) {
+  const parent = useContext(FieldPath);
+  return <FieldPath.Provider value={[...parent, props.label.replaceAll(" ", "_")]}><SchemaFieldInner {...props} /></FieldPath.Provider>;
+}
+function SchemaFieldInner({
   schema,
   root,
   value,
@@ -174,6 +180,13 @@ export function SchemaField({
   showDefaultValue?: boolean;
 }) {
   const id = useId();
+  const path = useContext(FieldPath);
+  const metadata = useContext(TypographyMetadata);
+  const runningHead = path.includes("page_header") || path.includes("page_footer");
+  const template = runningHead && ["text", "if"].includes(path.at(-1) || "");
+  const fieldError = template && typeof value === "string" ? templateError(value, metadata.codes)
+    : runningHead && path.at(-1) === "language" && value != null && !/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/.test(value)
+      ? "Use a language tag such as en for English or he for Hebrew." : undefined;
   const [newKey, setNewKey] = useState("");
   const [draftKey, setDraftKey] = useState("");
   const [draft, setDraft] = useState<Value>();
@@ -181,7 +194,7 @@ export function SchemaField({
   const [custom, setCustom] = useState(false);
   const [objectDraft, setObjectDraft] = useState<Value>();
   const reportPending = useContext(SettingsEditContext);
-  const pending = objectDraft !== undefined || adding || !!draftKey;
+  const pending = objectDraft !== undefined || adding || !!draftKey || !!fieldError;
   useEffect(() => {
     reportPending(id, pending);
     return () => reportPending(id, false);
@@ -253,6 +266,7 @@ export function SchemaField({
           {value === undefined && <span className="hint"> (default)</span>}
         </summary>
         {reset}
+        {runningHead && ["page_header", "page_footer"].includes(path.at(-1) || "") && <RunningHeadHelp label={label} codes={metadata.codes} />}
         {description}
         {objectDraft !== undefined && (
           <p className="hint" role="status">
@@ -478,6 +492,11 @@ export function SchemaField({
       </details>
     );
   }
+  const fontRoot = path.indexOf("fonts");
+  if (fontRoot >= 0 && path.includes("names") && path.at(-1) === "name") {
+    return <FontSelect id={id} label={fieldLabel} value={value} family={path[fontRoot + 1]}
+      catalog={metadata.fonts} onChange={onChange} required={isRequired} />;
+  }
   const range =
     s.type === "integer" || s.type === "number" ? numericChoices(s) : null;
   const choices = literals.length
@@ -504,8 +523,8 @@ export function SchemaField({
         <select
           id={id}
           aria-required={isRequired || undefined}
-          aria-invalid={missingRequired || undefined}
-          className={missingRequired ? "required-empty" : undefined}
+          aria-invalid={missingRequired || !!fieldError || undefined}
+          className={missingRequired || fieldError ? "required-empty" : undefined}
           value={mode}
           onChange={(e) => {
             if (e.target.value === "custom") setCustom(true);
@@ -539,8 +558,8 @@ export function SchemaField({
           <input
             aria-label={`${label} custom value`}
             aria-required={isRequired || undefined}
-            aria-invalid={missingRequired || undefined}
-            className={missingRequired ? "required-empty" : undefined}
+            aria-invalid={missingRequired || !!fieldError || undefined}
+            className={missingRequired || fieldError ? "required-empty" : undefined}
             type="number"
             min={s.minimum}
             max={s.maximum}
@@ -563,8 +582,8 @@ export function SchemaField({
         <input
           id={id}
           aria-required={isRequired || undefined}
-          aria-invalid={missingRequired || undefined}
-          className={missingRequired ? "required-empty" : undefined}
+          aria-invalid={missingRequired || !!fieldError || undefined}
+          className={missingRequired || fieldError ? "required-empty" : undefined}
           type={numeric ? "number" : "text"}
           value={
             displayedValue === null || displayedValue === undefined
@@ -614,11 +633,14 @@ export function SchemaField({
     <div className="field">
       <label htmlFor={id}>{fieldLabel}</label>
       {description}
+      {template && <RunningHeadHelp label={label} codes={metadata.codes} />}
       {editor}
+      {fieldError && <p className="field-error" role="alert">{fieldError}</p>}
+      {template && value && !fieldError && <p className="hint" role="status">Valid header/footer template.</p>}
       {s.default !== undefined &&
         s.default !== null &&
         typeof s.default !== "object" && (
-          <p className="hint">Default: {String(s.default)}.</p>
+          <p className="hint">Default: {typeof s.default === "boolean" ? (s.default ? "Yes" : "No") : String(s.default)}.</p>
         )}
     </div>
   );

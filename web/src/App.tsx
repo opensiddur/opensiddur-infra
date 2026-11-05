@@ -23,6 +23,7 @@ import { BuildProgress } from "./BuildProgress";
 import { RequiredMark } from "./RequiredMark";
 import { PresetNameForm } from "./PresetNameForm";
 import { SettingsEditContext } from "./SchemaField";
+import { TypographyMetadata, runningHeadIssues } from "./TypographyControls";
 import { StatusUpdates, useStatusUpdates } from "./StatusUpdates";
 import "./style.css";
 const terminal = new Set([
@@ -77,7 +78,8 @@ export function App() {
   const [savingPreset, setSavingPreset] = useState(false);
   const [renamingPreset, setRenamingPreset] = useState<string | null>(null);
   const [pendingFields, setPendingFields] = useState<Set<string>>(new Set());
-  const hasPendingSettings = pendingFields.size > 0;
+  const headerIssues = runningHeadIssues(settings.typography, catalog?.running_head_codes);
+  const hasPendingSettings = pendingFields.size > 0 || headerIssues.length > 0;
   const reportPending = useCallback(
     (id: string, pending: boolean) =>
       setPendingFields((old) => {
@@ -398,10 +400,10 @@ export function App() {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
-  const previewBlocker = loadingSettings ? "Wait for settings to finish loading."
+  const previewBlocker = headerIssues[0] || (loadingSettings ? "Wait for settings to finish loading."
     : !settings.book ? "Choose a starting text or load settings first."
     : hasPendingSettings ? "Complete or cancel unfinished settings first."
-    : "";
+    : "");
   const buildBlocker = previewBlocker || (!formats.some((format) => advanced || ["pdf", "html"].includes(format))
       ? "Select at least one output format before building." : "");
   const fullHistory = history.filter((row) => row.type === "full");
@@ -709,6 +711,7 @@ export function App() {
     );
   }
   return (
+    <TypographyMetadata.Provider value={{ fonts: catalog?.font_catalog, codes: catalog?.running_head_codes }}>
     <SettingsEditContext.Provider value={reportPending}>
       <header>
         <div className="brand-row">
@@ -1027,6 +1030,7 @@ export function App() {
                 <p className="hint">Load a preset or a YAML file to replace the current settings, then continue editing below.</p>
                 {loadingSettings && <p role="status">Loading settings…</p>}
               </div>
+                {headerIssues.length > 0 && <p className="field-error" role="alert">{headerIssues[0]}</p>}
                 {hasPendingSettings && (
                   <p role="status" className="hint">
                     Complete or cancel unfinished settings before previewing,
@@ -1401,5 +1405,6 @@ export function App() {
         <a href="https://github.com/opensiddur/opensiddur-infra">Source</a>
       </footer>
     </SettingsEditContext.Provider>
+    </TypographyMetadata.Provider>
   );
 }

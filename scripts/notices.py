@@ -68,13 +68,34 @@ def generate(bundle, processor):
                 "text": (root / "LICENSE").read_text(),
             }
         )
-    components.append({
-        "name": "Open Siddur Project logo",
-        "version": "2016 SVG, unchanged",
-        "license": "CC-BY-SA-4.0",
-        "source": "https://opensiddur.org/wp-content/uploads/2018/09/Open-Siddur-Project-Logo-2016.svg",
-        "text": Path("web/public/brand-notice.txt").read_text(),
-    })
+    components.append(
+        {
+            "name": "Open Siddur Project logo",
+            "version": "2016 SVG, unchanged",
+            "license": "CC-BY-SA-4.0",
+            "source": "https://opensiddur.org/wp-content/uploads/2018/09/Open-Siddur-Project-Logo-2016.svg",
+            "text": Path("web/public/brand-notice.txt").read_text(),
+        }
+    )
+    font_docs = Path("/usr/share/doc/opensiddur-font-pack")
+    if (font_docs / "manifest.json").exists():
+        font_manifest = json.loads((font_docs / "manifest.json").read_text())
+        texts = [
+            str(path.relative_to(font_docs)) + "\n" + path.read_text(errors="replace")
+            for path in sorted(font_docs.rglob("*"))
+            if path.is_file() and path.name != "manifest.json"
+        ]
+        components.append(
+            {
+                "name": "Open Siddur font pack",
+                "version": font_manifest["revision"],
+                "license": "Multiple font licenses; see included per-font notices",
+                "source": font_manifest["repository"].removesuffix(".git")
+                + "/tree/"
+                + font_manifest["revision"],
+                "text": "\n\n".join(texts),
+            }
+        )
     frontend = Path(".bundle/frontend-notices.json")
     if frontend.exists():
         components.extend(json.loads(frontend.read_text()))

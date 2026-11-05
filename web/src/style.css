@@ -688,3 +688,5 @@ legend { padding: 0 6px; font-weight: 600; }
   .step-succeeded .step-icon { color: #56d389; }
   .step-failed .step-icon { color: #ff7b72; }
 }
+.field-error { color: #a3261b; overflow-wrap: anywhere; }
+@media (prefers-color-scheme: dark) { .field-error { color: #ffaaa2; } }

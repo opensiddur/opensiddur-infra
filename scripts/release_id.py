@@ -12,6 +12,7 @@ def release_identity():
             "Dockerfile",
             "uv.lock",
             "releases.lock.json",
+            "fonts.lock.json",
             "web/package-lock.json",
         )
     ]
