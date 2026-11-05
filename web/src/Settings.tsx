@@ -90,11 +90,13 @@ export function Sources({
 export function Declarations({
   registry,
   labels,
+  defaults = {},
   value,
   onChange,
 }: {
   registry: Value;
   labels: Value;
+  defaults?: Value;
   value: Value;
   onChange: (v: Value) => void;
 }) {
@@ -112,8 +114,9 @@ export function Declarations({
     <section>
       <h3>Customs, calendar & conditional text</h3>
       <p className="hint">
-        Choose (default) to follow the source’s choice. Choose (undefined) to
-        clear an inherited value. Yes and No are explicit choices.
+        Unchanged settings show their default value. (undefined) leaves the choice
+        open. Source texts can supply local values; calculated settings depend on
+        other inputs such as date and location.
       </p>
       <select
         aria-label="Add setting group"
@@ -179,7 +182,8 @@ export function Declarations({
                   key={feature}
                   label={label}
                   root={{}}
-                  schema={{ anyOf: [scalar, { type: "null" }] }}
+                  schema={{ anyOf: [scalar, { type: "null" }], default: defaults[group]?.[feature] ?? null }}
+                  showDefaultValue
                   value={current}
                   onChange={(next) => update(group, feature, next)}
                   advanced={false}

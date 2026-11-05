@@ -161,6 +161,7 @@ export function SchemaField({
   advanced = true,
   expanded = false,
   required = false,
+  showDefaultValue = false,
 }: {
   schema: Value;
   root: Value;
@@ -170,6 +171,7 @@ export function SchemaField({
   advanced?: boolean;
   expanded?: boolean;
   required?: boolean;
+  showDefaultValue?: boolean;
 }) {
   const id = useId();
   const [newKey, setNewKey] = useState("");
@@ -213,7 +215,7 @@ export function SchemaField({
         setDraftKey("");
       }}
     >
-      (default)
+      {showDefaultValue ? `Reset to ${s.default == null ? "(undefined)" : typeof s.default === "boolean" ? (s.default ? "Yes" : "No") : String(s.default)}` : "(default)"}
     </button>
   );
   const description =
@@ -483,13 +485,14 @@ export function SchemaField({
     : s.type === "boolean"
       ? [true, false]
       : range?.values;
-  const index = choices?.findIndex((v: Value) => Object.is(v, value)) ?? -1;
+  const displayedValue = showDefaultValue && value === undefined ? s.default ?? null : value;
+  const index = choices?.findIndex((v: Value) => Object.is(v, displayedValue)) ?? -1;
   let editor;
   if (choices) {
     const mode =
-      value === undefined && !custom
+      value === undefined && !custom && !showDefaultValue
         ? ""
-        : value === null && model.nullable
+        : displayedValue === null && model.nullable
           ? "null"
           : custom || (range?.custom && index < 0)
             ? "custom"
@@ -518,7 +521,7 @@ export function SchemaField({
             }
           }}
         >
-          <option value="">(default)</option>
+          {!showDefaultValue && <option value="">(default)</option>}
           {choices.map((v: Value, i: number) => (
             <option key={i} value={String(i)}>
               {typeof v === "boolean" ? (v ? "Yes" : "No") : String(v)}
@@ -564,15 +567,15 @@ export function SchemaField({
           className={missingRequired ? "required-empty" : undefined}
           type={numeric ? "number" : "text"}
           value={
-            value === null || value === undefined
+            displayedValue === null || displayedValue === undefined
               ? ""
-              : typeof value === "object"
-                ? JSON.stringify(value)
-                : value
+              : typeof displayedValue === "object"
+                ? JSON.stringify(displayedValue)
+                : displayedValue
           }
           placeholder={
             value === undefined
-              ? "(default)"
+              ? showDefaultValue ? s.default == null ? "(undefined)" : String(s.default) : "(default)"
               : value === null
                 ? "(undefined)"
                 : undefined

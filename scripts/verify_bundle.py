@@ -9,6 +9,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from opensiddur.exporter.settings import validate_settings
+from opensiddur.exporter.derived_settings import STATIC_DEFAULTS
 from opensiddur_infra.api import create_app
 from opensiddur_infra.builds import Builds
 from opensiddur_infra.config import Config
@@ -26,6 +27,7 @@ projects = processor / "opensiddur-projects/project"
 bundle = Path(os.environ.get("BUNDLE_DIR", "/opt/bundle"))
 catalog = json.loads((bundle / "catalog.json").read_text())
 assert catalog["projects"], "Empty catalog"
+assert catalog["declaration_defaults"] == STATIC_DEFAULTS, "Customs defaults must match the pinned compiler"
 for project in catalog["projects"]:
     for preset in project["presets"]:
         validate_settings(preset["settings"], project_directory=projects)

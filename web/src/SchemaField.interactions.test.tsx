@@ -264,8 +264,8 @@ it("edits Customs enums and numeric ranges directly without a Set-value activati
   expect(changed).toHaveBeenLastCalledWith({
     "opensiddur:example": { choice: "second" },
   });
-  pick(choice, "(default)");
-  expect(changed).toHaveBeenLastCalledWith({ "opensiddur:example": {} });
+  pick(choice, "(undefined)");
+  expect(changed).toHaveBeenLastCalledWith({ "opensiddur:example": { choice: null } });
 });
 
 it("distinguishes explicit empty text from resetting to default", () => {
@@ -338,4 +338,31 @@ it("marks required empty values without marking defaults or treating zero and fa
   expect(container.querySelectorAll(".required-marker")).toHaveLength(3);
   fireEvent.change(name, { target: { value: "My font" } });
   expect(name.getAttribute("aria-invalid")).toBeNull();
+});
+
+it("shows actual Customs defaults, including false and zero, without writing inherited values", () => {
+  const changed = vi.fn();
+  render(<Declarations
+    registry={{ example: { features: {
+      enabled: "binary", disabled: "binary", day: { numeric: { min: 0, max: 3 } },
+      count: { numeric: { min: 0 } }, choice: { symbol: { values: ["one", "two"] } }, unset: "binary",
+    } } }}
+    labels={{}} defaults={{ example: { enabled: true, disabled: false, day: 0, count: 12, choice: "two" } }}
+    value={{ example: {} }} onChange={changed} />);
+  const selectedText = (name: string) => {
+    const field = screen.getByRole("combobox", { name }) as HTMLSelectElement;
+    return field.selectedOptions[0].text;
+  };
+  expect(selectedText("enabled")).toBe("Yes");
+  expect(selectedText("disabled")).toBe("No");
+  expect(selectedText("day")).toBe("0");
+  expect(selectedText("choice")).toBe("two");
+  expect(selectedText("unset")).toBe("(undefined)");
+  expect((screen.getByRole("spinbutton", { name: "count" }) as HTMLInputElement).value).toBe("12");
+  expect(screen.queryByRole("option", { name: "(default)" })).toBeNull();
+  expect(changed).not.toHaveBeenCalled();
+  pick(screen.getByRole("combobox", { name: "disabled" }), "Yes");
+  expect(changed).toHaveBeenLastCalledWith({ example: { disabled: true } });
+  pick(screen.getByRole("combobox", { name: "enabled" }), "(undefined)");
+  expect(changed).toHaveBeenLastCalledWith({ example: { enabled: null } });
 });

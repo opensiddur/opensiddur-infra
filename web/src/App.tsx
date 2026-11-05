@@ -1118,6 +1118,7 @@ export function App() {
                   <Declarations
                     registry={catalog?.features}
                     labels={catalog?.feature_labels}
+                    defaults={catalog?.declaration_defaults}
                     value={settings.declarations || {}}
                     onChange={(v) => setRoot("declarations", v)}
                   />

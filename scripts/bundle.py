@@ -6,6 +6,7 @@ from pathlib import Path
 
 import yaml
 from lxml import etree
+from opensiddur.exporter.derived_settings import STATIC_DEFAULTS
 
 processor = Path(os.environ.get("PROCESSOR_DIR", "/opt/processor"))
 bundle = Path(os.environ.get("BUNDLE_DIR", "/opt/bundle"))
@@ -63,6 +64,7 @@ for project in sorted(projects.iterdir()):
             "features": yaml.safe_load(
                 (processor / "opensiddur/exporter/features.yaml").read_text()
             ),
+            "declaration_defaults": STATIC_DEFAULTS,
             "feature_labels": yaml.safe_load(
                 (processor / "opensiddur/exporter/html/basic_settings.yaml").read_text()
             ),
