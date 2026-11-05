@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, act, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, act, waitFor, within } from "@testing-library/react";
 import { App } from "./App";
 import { api, download } from "./api";
 import { parse } from "yaml";
@@ -154,6 +154,8 @@ it("opens the submitted full build and polls through completion to downloads", a
   expect(submitted[2]).toMatchObject({ settings: { book: { project: "sample" } }, formats: ["pdf", "html"] });
   await act(async () => { await vi.advanceTimersByTimeAsync(2100); });
   expect(screen.getByText("Complete: Finished")).toBeTruthy();
+  expect((screen.getByRole("button", { name: "Download worker.log" }).closest("details") as HTMLDetailsElement).open).toBe(false);
+  fireEvent.click(screen.getByText("Details", { selector: "summary" }));
   fireEvent.click(screen.getByRole("button", { name: "Download worker.log" }));
   expect(vi.mocked(download)).toHaveBeenCalledWith("/builds/new-build/files/worker.log", "worker.log");
   expect(screen.getByRole("button", { name: "book.pdf" })).toBeTruthy();
@@ -273,4 +275,34 @@ it.each(["html", "pdf"] as const)("refreshes the selected %s sample without swit
   expect(submissions).toHaveLength(2);
   expect(submissions.map(call => [call[2].type, call[2].formats])).toEqual([[mode, [mode]], [mode, [mode]]]);
   expect(mode === "html" ? screen.getByTitle("Settings demonstration") : screen.getByLabelText("Print settings demonstration")).toBeTruthy();
+});
+
+it("keeps history logs inside collapsed details for active and finished builds", async () => {
+  window.history.replaceState({}, "", "/builds");
+  vi.mocked(download).mockClear();
+  vi.mocked(api).mockImplementation(async (path) => {
+    if (path === "/catalog") return { release: "synthetic", features: {}, projects: [] };
+    if (path === "/schema") return { properties: {} };
+    if (path === "/account") return { consent: { version: "test" }, consent_version: "test" };
+    if (path === "/builds") return [
+      { id: "active", type: "full", state: "running", stage: "Typesetting", artifacts: [{ name: "worker.log" }] },
+      { id: "finished", type: "full", state: "failed", stage: "Private failure details", artifacts: [{ name: "pdf.log" }] },
+    ];
+    return [];
+  });
+  await act(async () => { render(<App />); });
+  for (const log of screen.getAllByRole("button", { name: /Download .*\.log/ })) {
+    expect((log.closest("details") as HTMLDetailsElement).open).toBe(false);
+  }
+  const active = within(screen.getByText("Book · Running").closest("article")!);
+  const finished = within(screen.getByText("Book · Failed").closest("article")!);
+  for (const [entry, id, filename] of [[active, "active", "worker.log"], [finished, "finished", "pdf.log"]] as const) {
+    fireEvent.click(entry.getByText("Details", { selector: "summary" }));
+    fireEvent.click(entry.getByRole("button", { name: "Download " + filename }));
+    expect(vi.mocked(download)).toHaveBeenCalledWith(`/builds/${id}/files/${filename}`, filename);
+    fireEvent.click(entry.getByText("Details", { selector: "summary" }));
+    expect((entry.getByRole("button", { name: "Download " + filename }).closest("details") as HTMLDetailsElement).open).toBe(false);
+  }
+  expect(screen.queryByText("Private failure details")).toBeNull();
+  expect(finished.queryByText("Detailed steps were not recorded for this build yet.")).toBeNull();
 });

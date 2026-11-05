@@ -599,10 +599,9 @@ export function App() {
             event.preventDefault(); navigate("/builds/" + b.id);
           }}>View build</a>
         </div>
-        {!terminal.has(b.state) && <>
-          <p>{b.stage || "Waiting to start"}</p>
-          <BuildProgress build={b} />
-        </>}
+        {!terminal.has(b.state) && <p>{b.stage || "Waiting to start"}</p>}
+        {(!terminal.has(b.state) || b.artifacts?.some((a: Value) => /\.(log|blg)$/.test(a.name))) &&
+          <BuildProgress build={b} showSteps={!terminal.has(b.state)}>{renderLogs(b)}</BuildProgress>}
       </article>
     );
     return (
@@ -705,8 +704,7 @@ export function App() {
                         Delete
                       </button>
                     </div>
-                    <BuildProgress build={b} />
-                    {renderLogs(b)}
+                    <BuildProgress build={b}>{renderLogs(b)}</BuildProgress>
                   </article>
     );
   }
