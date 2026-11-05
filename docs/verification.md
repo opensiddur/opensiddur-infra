@@ -127,5 +127,24 @@ conditional material is in a separate English-language division, since merely
 marking a paragraph as English inside a mixed Hebrew division does not change
 the pinned renderer's stream direction.
 
-Deployment and actual-image verification for these changes are recorded below
-once complete. The earlier vowel-placement limitation remains unresolved.
+The clean [image build](https://console.cloud.google.com/cloud-build/builds/22ef86a5-bc84-4503-b48f-254cf11c809e?project=817628492067)
+passed actual PDF/HTML/TeX/XML generation, installed-font checks and restricted
+TeX IO probes. The [final fixture-pin image](https://console.cloud.google.com/cloud-build/builds/eed0b2d8-7d4d-4b9a-a5e8-2322be70af49?project=817628492067)
+reran the same smoke gate successfully. Implementation `5029c10` is deployed in
+development as release `2a718c4a20ee0216c64f`; API/catalog agree and Hosting serves
+byte-identical tested JavaScript. All required checks pass in the infrastructure,
+preview-project and paired registry PRs.
+
+The public catalog contains the original 141 projects plus the two preview works,
+and 410 installed scalable font families. Hebrew selections are grouped into 25
+vowel/cantillation, 45 vowel, 80 consonant-only and five partial/historical families.
+The font-pack notices are published. Browser review of the actual owner history
+confirmed resolved work titles and descending creation dates on the live site.
+
+A real synthetic PDF preview passed Cloud Tasks → API OIDC → worker → Firestore
+→ private Storage. Its temporary account and artifacts were removed afterward.
+All five PDF pages were rendered for inspection: the conditional English sentence
+reads left to right, with independent front matter, parallel/unpaired text, notes,
+credits and a synthetic bibliography. This verifies the demonstration direction
+fix; the earlier reported vowel-placement limitation remains unresolved.
+Production remains foundation-only and public submissions remain disabled.
