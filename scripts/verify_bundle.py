@@ -133,9 +133,10 @@ assert b"{logo.png}" in outputs.files["book.tex"], (
 tex = outputs.files["book.tex"].decode()
 sample_text = "A demonstration passage shown when a minyan is selected."
 sample_position = tex.index(sample_text)
-assert tex.rfind(r"\begin{english}", 0, sample_position) > tex.rfind(
-    r"\end{english}", 0, sample_position
-), "English sample text must have an LTR language stream"
+assert r"\setdefaultlanguage{english}" in tex
+assert tex.rfind(r"\begin{hebrew}", 0, sample_position) < tex.rfind(
+    r"\end{hebrew}", 0, sample_position
+), "English sample text must be outside the RTL Hebrew stream"
 
 # Exercise the real Lua IO policy as the unprivileged image user. New TeX needs
 # installed Unicode tables, but must not gain access to credentials or other runs.
