@@ -17,8 +17,9 @@ vi.mock("./api", () => ({
   emailLink: vi.fn(), finishEmail: vi.fn(), logout: vi.fn(), google: vi.fn(), download: vi.fn(),
 }));
 afterEach(() => { cleanup(); vi.useRealTimers(); vi.restoreAllMocks(); localStorage.clear(); vi.unstubAllGlobals(); });
-it("switches Typography to real PDF previews and regenerates when Pages changes to Pairs", async () => {
+it("keeps Typography in HTML until print layout is selected and refreshes the chosen format", async () => {
   vi.useFakeTimers();
+  vi.mocked(api).mockClear();
   Element.prototype.scrollIntoView = vi.fn();
   window.history.replaceState({}, "", "/");
   let count = 0;
@@ -34,7 +35,11 @@ it("switches Typography to real PDF previews and regenerates when Pages changes 
     if (path.startsWith("/builds/")) return { state: "succeeded" };
     return [];
   });
-  vi.stubGlobal("fetch", vi.fn(async () => ({ ok: true, blob: async () => new Blob(["%PDF-synthetic"], { type: "application/pdf" }) })));
+  vi.stubGlobal("fetch", vi.fn(async () => ({
+    ok: true,
+    text: async () => "<p>Sample</p>",
+    blob: async () => new Blob(["%PDF-synthetic"], { type: "application/pdf" }),
+  })));
   const revoke = vi.fn();
   vi.stubGlobal("URL", Object.assign(URL, { createObjectURL: vi.fn(() => "blob:synthetic-" + count), revokeObjectURL: revoke }));
   await act(async () => { render(<App />); });
@@ -43,20 +48,29 @@ it("switches Typography to real PDF previews and regenerates when Pages changes 
   fireEvent.change(title, { target: { value: "Sample" } });
   fireEvent.keyDown(title, { key: "Enter" });
   fireEvent.click(screen.getByRole("tab", { name: "Typography" }));
-  expect((screen.getByRole("combobox", { name: "Preview format" }) as HTMLSelectElement).value).toBe("pdf");
+  const format = screen.getByRole<HTMLSelectElement>("combobox", { name: "Preview format" });
+  expect(format.value).toBe("html");
   fireEvent.click(screen.getByText("parallel", { selector: "summary" }));
   const layout = screen.getByRole("combobox", { name: "layout" });
   const choose = (name: string) => fireEvent.change(layout, { target: { value: Array.from((layout as HTMLSelectElement).options).find(o => o.text === name)!.value } });
   choose("pages");
   await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
-  expect(screen.getByLabelText("Print settings demonstration").getAttribute("data")).toBe("blob:synthetic-1");
-  choose("pairs");
+  expect(screen.getByTitle("Settings demonstration")).toBeTruthy();
+  fireEvent.click(screen.getByRole("tab", { name: "Sources" }));
+  fireEvent.click(screen.getByRole("tab", { name: "Typography" }));
+  expect(format.value).toBe("html");
+  expect(screen.getByTitle("Settings demonstration")).toBeTruthy();
+  fireEvent.change(format, { target: { value: "pdf" } });
+  await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
+  expect(screen.getByLabelText("Print settings demonstration").getAttribute("data")).toBe("blob:synthetic-2");
+  const currentLayout = screen.getByRole<HTMLSelectElement>("combobox", { name: "layout" });
+  fireEvent.change(currentLayout, { target: { value: Array.from(currentLayout.options).find(o => o.text === "pairs")!.value } });
   expect(screen.queryByLabelText("Print settings demonstration")).toBeNull();
   await act(async () => { await vi.advanceTimersByTimeAsync(2600); });
   const builds = vi.mocked(api).mock.calls.filter(([path, method]) => path === "/builds" && method === "POST");
-  expect(builds.map(call => [call[2].type, call[2].settings.typography.parallel.layout])).toEqual([["pdf", "pages"], ["pdf", "pairs"]]);
-  expect(screen.getByLabelText("Print settings demonstration").getAttribute("data")).toBe("blob:synthetic-2");
-  expect(revoke).toHaveBeenCalledWith("blob:synthetic-1");
+  expect(builds.map(call => [call[2].type, call[2].settings.typography.parallel.layout])).toEqual([["html", "pages"], ["pdf", "pages"], ["pdf", "pairs"]]);
+  expect(screen.getByLabelText("Print settings demonstration").getAttribute("data")).toBe("blob:synthetic-3");
+  expect(revoke).toHaveBeenCalledWith("blob:synthetic-2");
   vi.unstubAllGlobals();
 });
 
@@ -91,7 +105,14 @@ it("saves and renames presets without prompts and keeps build history in its own
   fireEvent.change(screen.getByRole("textbox", { name: "Preset name" }), { target: { value: "  My siddur  " } });
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await screen.findByText("Preset saved until you delete it.");
-  expect(presets[0]).toMatchObject({ name: "My siddur", settings: { book: { project: "sample" } }, preferences: { advanced: false, formats: ["pdf", "html"] } });
+  expect(presets[0]).toMatchObject({
+    name: "My siddur",
+    settings: {
+      book: { project: "sample" },
+      priority: { transclusion: ["sample"] },
+    },
+    preferences: { advanced: false, formats: ["pdf", "html"] },
+  });
   fireEvent.click(screen.getByText("Account", { selector: "summary" }));
   fireEvent.click(screen.getByRole("link", { name: "Account & saved presets" }));
   fireEvent.click(screen.getByText("Saved presets & account controls"));

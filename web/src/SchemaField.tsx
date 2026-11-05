@@ -236,6 +236,10 @@ function SchemaFieldInner({
     advanced && s.description ? <p className="hint">{s.description}</p> : null;
   if (objectSchema) {
     const group = { ...objectSchema, ...resolve(schema, root) };
+    const properties = path.length === 2 && path[0] === "typography" && path[1] === "fonts" &&
+      group.additionalProperties && typeof group.additionalProperties === "object"
+      ? { latin: group.additionalProperties, hebrew: group.additionalProperties, ...group.properties }
+      : group.properties || {};
     const current = objectDraft || objectValue(value);
     const set = (key: string, next: Value) => {
       const result = { ...current };
@@ -320,7 +324,7 @@ function SchemaFieldInner({
           custom ||
           objectDraft !== undefined) && (
           <div className="nested">
-            {Object.entries(group.properties || {}).map(([key, child]) => (
+            {Object.entries(properties).map(([key, child]) => (
               <SchemaField
                 key={key}
                 advanced={advanced}
@@ -336,7 +340,7 @@ function SchemaFieldInner({
             {group.additionalProperties && (
               <>
                 {Object.entries(current)
-                  .filter(([key]) => !group.properties?.[key])
+                  .filter(([key]) => !Object.hasOwn(properties, key))
                   .map(([key, v]) => (
                     <SchemaField
                       key={key}
@@ -364,7 +368,8 @@ function SchemaFieldInner({
                     <button
                       type="button"
                       disabled={
-                        !newKey.trim() || Object.hasOwn(current, newKey.trim())
+                        !newKey.trim() || Object.hasOwn(current, newKey.trim()) ||
+                        Object.hasOwn(properties, newKey.trim())
                       }
                       onClick={() => {
                         setDraftKey(newKey.trim());

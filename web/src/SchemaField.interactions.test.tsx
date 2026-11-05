@@ -9,6 +9,7 @@ import {
   within,
 } from "@testing-library/react";
 import { Declarations } from "./Settings";
+import { TypographyMetadata } from "./TypographyControls";
 import {
   SchemaField,
   resolve,
@@ -16,6 +17,57 @@ import {
   SettingsEditContext,
 } from "./SchemaField";
 afterEach(cleanup);
+
+it("sets a built-in font family from the installed catalog in standard mode", () => {
+  const changed = vi.fn();
+  const schema = {
+    type: "object",
+    properties: {
+      fonts: { type: "object", additionalProperties: { $ref: "#/$defs/FontFamily" } },
+    },
+    $defs: {
+      FontFamily: {
+        type: "object",
+        required: ["names"],
+        properties: {
+          names: {
+            type: "array",
+            minItems: 1,
+            items: {
+              type: "object",
+              required: ["name"],
+              properties: { name: { type: "string" } },
+            },
+          },
+        },
+      },
+    },
+  };
+  render(
+    <TypographyMetadata.Provider value={{ fonts: {
+      installed: ["Example Hebrew", "Example Latin"],
+      hebrew: [{ label: "Hebrew fonts", fonts: ["Example Hebrew"] }],
+      latin: [{ label: "Latin fonts", fonts: ["Example Latin"] }],
+      other: [],
+    } }}>
+      <SchemaField label="typography" schema={schema} root={schema}
+        value={undefined} onChange={changed} advanced={false} expanded />
+    </TypographyMetadata.Provider>,
+  );
+  fireEvent.click(screen.getByText("fonts", { selector: "summary" }));
+  const hebrew = screen.getByText("hebrew", { selector: "summary" });
+  fireEvent.click(hebrew);
+  const family = within(hebrew.closest("details")!);
+  fireEvent.click(family.getByText("names", { selector: "summary" }));
+  fireEvent.click(family.getByRole("button", { name: "Add item" }));
+  fireEvent.change(family.getByRole("combobox", { name: /name/ }), {
+    target: { value: "Example Hebrew" },
+  });
+  fireEvent.click(family.getByRole("button", { name: "Add to list" }));
+  expect(changed).toHaveBeenLastCalledWith({
+    fonts: { hebrew: { names: [{ name: "Example Hebrew" }] } },
+  });
+});
 
 const root = {
   $defs: {

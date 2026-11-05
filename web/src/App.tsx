@@ -356,8 +356,12 @@ export function App() {
       return;
     }
     const preset = project.presets?.[0];
+    const next = preset?.settings || { book: { project: id, file_name: "index.xml" } };
+    const transclusion = next.priority?.transclusion ?? [];
     replaceSettings(
-      preset?.settings || { book: { project: id, file_name: "index.xml" } },
+      transclusion.includes(id)
+        ? next
+        : { ...next, priority: { ...next.priority, transclusion: [...transclusion, id] } },
     );
     setPublishedPreset(preset ? "0" : "");
     setAsset(null);
@@ -1050,10 +1054,7 @@ export function App() {
                       role="tab"
                       aria-selected={tab === t}
                       key={t}
-                      onClick={() => {
-                        setTab(t);
-                        if (t === "Typography") setPreviewMode("pdf");
-                      }}
+                      onClick={() => setTab(t)}
                     >
                       {t}
                     </button>
