@@ -260,7 +260,8 @@ function SchemaFieldInner({
       {showDefaultValue ? `Reset to ${s.default == null ? "(undefined)" : typeof s.default === "boolean" ? (s.default ? "Yes" : "No") : String(s.default)}` : "(default)"}
     </button>
   );
-  const help = s.description || fieldHelp[path.at(-1) || ""] ||
+  const fontFamilyGroup = path.length === 3 && path[0] === "typography" && path[1] === "fonts";
+  const help = (fontFamilyGroup ? fontPriorityHelp : s.description) || fieldHelp[path.at(-1) || ""] ||
     (objectSchema ? `Settings that control ${label}.` : `Choose a value for ${label}, or use the default supplied by the builder.`);
   if (objectSchema) {
     const group = { ...objectSchema, ...resolve(schema, root) };
@@ -456,19 +457,8 @@ function SchemaFieldInner({
       const next = entries.filter((_: Value, i: number) => i !== index);
       onChange(next.length < (s.minItems || 0) ? undefined : next);
     };
-    return (
-      <details
-        className="field field-group"
-        open={!!fontFamily || expanded || value !== undefined || adding}
-      >
-        <summary>
-          {fontFamily ? "Font priority" : fieldLabel}
-          {!fontFamily && value === undefined && <span className="hint"> (default)</span>}
-          <SettingHelp label={fontFamily ? "Font priority" : label}>
-            {fontFamily ? fontPriorityHelp : help}
-          </SettingHelp>
-        </summary>
-        {(!fontFamily || entries.length > 0) && reset}
+    const entriesEditor = (
+      <>
         {fontFamily && entries.length === 0 && (
           <FontSelect
             id={id}
@@ -476,7 +466,7 @@ function SchemaFieldInner({
             family={fontFamily}
             catalog={metadata.fonts}
             required={false}
-            help="Choose the first font to try for this script. Default uses the compiler’s built-in font."
+            help={`${fontPriorityHelp} Default uses the compiler’s built-in font.`}
             onChange={(name) => onChange(name ? [{ name }] : undefined)}
           />
         )}
@@ -547,6 +537,18 @@ function SchemaFieldInner({
             <button onClick={() => setAdding(false)}>Cancel</button>
           </div>
         )}
+      </>
+    );
+    if (fontFamily) return entriesEditor;
+    return (
+      <details className="field field-group" open={expanded || value !== undefined || adding}>
+        <summary>
+          {fieldLabel}
+          {value === undefined && <span className="hint"> (default)</span>}
+          <SettingHelp label={label}>{help}</SettingHelp>
+        </summary>
+        {reset}
+        {entriesEditor}
       </details>
     );
   }
@@ -566,7 +568,11 @@ function SchemaFieldInner({
   }
   const range =
     s.type === "integer" || s.type === "number" ? numericChoices(s) : null;
-  const choices = literals.length
+  const styleFont = path[0] === "typography" && path[1] === "styles" &&
+    path.length === 4 && path[3] === "font";
+  const choices = styleFont
+    ? [...new Set(["latin", "hebrew", ...(metadata.customFontFamilies || [])])]
+    : literals.length
     ? literals
     : s.type === "boolean"
       ? [true, false]
