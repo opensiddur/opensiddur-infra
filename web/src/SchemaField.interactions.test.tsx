@@ -64,6 +64,7 @@ it("sets a built-in font family from the installed catalog in standard mode", ()
   const hebrew = screen.getByText("hebrew", { selector: "summary" });
   fireEvent.click(hebrew);
   const family = within(hebrew.closest("details")!);
+  expect(family.queryByText("Font priority", { selector: "summary" })).toBeNull();
   const preferred = family.getByRole<HTMLSelectElement>("combobox", { name: "Preferred font" });
   expect(preferred.value).toBe("");
   fireEvent.change(preferred, { target: { value: "Example Hebrew" } });
