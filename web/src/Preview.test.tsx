@@ -8,7 +8,7 @@ import { parse } from "yaml";
 
 vi.mock("firebase/auth", () => ({
   onAuthStateChanged: (_: unknown, callback: Function) => {
-    callback({ uid: "synthetic", getIdToken: async () => "synthetic-token" });
+    callback({ uid: "synthetic", displayName: "Example Reader", getIdToken: async () => "synthetic-token" });
     return () => {};
   },
 }));
@@ -114,7 +114,11 @@ it("saves and renames presets without prompts and keeps build history in its own
     preferences: { advanced: false, formats: ["pdf", "html"] },
   });
   fireEvent.click(screen.getByText("Account", { selector: "summary" }));
-  fireEvent.click(screen.getByRole("link", { name: "Account & saved presets" }));
+  const accountLink = screen.getByRole("link", { name: "Account & saved presets" });
+  const accountName = screen.getByText("Example Reader");
+  expect(accountName.tagName).toBe("P");
+  expect(accountLink.previousElementSibling).toBe(accountName);
+  fireEvent.click(accountLink);
   fireEvent.click(screen.getByText("Saved presets & account controls"));
   fireEvent.click(screen.getByRole("button", { name: "Rename" }));
   expect((screen.getByRole("textbox", { name: "Preset name" }) as HTMLInputElement).value).toBe("My siddur");

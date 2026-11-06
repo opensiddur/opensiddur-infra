@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import React from "react";
 import { afterEach, expect, it, vi } from "vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { FontSelect, TypographyMetadata, runningHeadIssues, templateError } from "./TypographyControls";
 import { SchemaField, SettingsEditContext } from "./SchemaField";
 afterEach(cleanup);
@@ -28,6 +28,39 @@ it("offers installed fonts in capability sections without a free-text name input
   expect(screen.queryByRole("option", { name: "Latin" })).toBeNull();
   fireEvent.change(select, { target: { value: "Consonants" } });
   expect(onChange).toHaveBeenCalledWith("Consonants");
+});
+it("offers built-in and custom font families for a text style", () => {
+  const onChange = vi.fn();
+  const schema = {
+    type: "object",
+    properties: {
+      styles: {
+        type: "object",
+        properties: {
+          body: {
+            type: "object",
+            properties: {
+              font: { anyOf: [{ type: "string" }, { type: "null" }], default: null },
+            },
+          },
+        },
+      },
+    },
+  };
+  render(
+    <TypographyMetadata.Provider value={{ customFontFamilies: ["hebrew", "note-sans"] }}>
+      <SchemaField label="typography" schema={schema} root={schema} onChange={onChange}
+        value={{ styles: { body: { font: null } } }} />
+    </TypographyMetadata.Provider>,
+  );
+  const select = screen.getByRole<HTMLSelectElement>("combobox", { name: "font" });
+  expect(Array.from(select.options, (option) => option.text)).toEqual([
+    "(default)", "latin", "hebrew", "note-sans", "(undefined)",
+  ]);
+  fireEvent.change(select, {
+    target: { value: within(select).getByRole<HTMLOptionElement>("option", { name: "note-sans" }).value },
+  });
+  expect(onChange).toHaveBeenCalledWith({ styles: { body: { font: "note-sans" } } });
 });
 it("provides header help and reports invalid templates as pending edits", () => {
   const report = vi.fn();

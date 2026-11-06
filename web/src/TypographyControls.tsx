@@ -8,7 +8,11 @@ export type FontCatalog = {
   other: FontGroup[];
   defaults?: Record<string, string>;
 };
-export const TypographyMetadata = createContext<{ fonts?: FontCatalog; codes?: string[] }>({});
+export const TypographyMetadata = createContext<{
+  fonts?: FontCatalog;
+  codes?: string[];
+  customFontFamilies?: string[];
+}>({});
 
 export function templateError(text: string, codes?: string[]): string | undefined {
   for (let i = 0; i < text.length;) {
