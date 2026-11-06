@@ -1,0 +1,15 @@
+.git
+.venv
+**/node_modules
+**/__pycache__
+.pytest_cache
+.ruff_cache
+.runtime
+.env
+.env.*
+gha-creds-*.json
+infrastructure/.terraform
+**/*.tfstate*
+**/*.tfplan
+**/*.auto.tfvars
+web/dist

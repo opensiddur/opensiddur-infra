@@ -1,0 +1,91 @@
+name: Promote upstream releases
+on:
+  schedule: [{ cron: "17 6 * * *" }]
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency: upstream-promotion
+jobs:
+  development:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: dev
+    outputs:
+      changed: ${{ steps.upstream.outputs.changed }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - name: Discover new published pair
+        id: upstream
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          gcloud storage cp gs://opensiddur-builder-dev-tfstate/deployments/upstream-lock.json /tmp/deployed-lock.json 2>/dev/null && cp /tmp/deployed-lock.json releases.lock.json || true
+          cp releases.lock.json /tmp/previous-lock.json
+          python scripts/check_releases.py
+          if cmp -s releases.lock.json /tmp/previous-lock.json; then echo 'changed=false' >> "$GITHUB_OUTPUT"; else echo 'changed=true' >> "$GITHUB_OUTPUT"; fi
+      - uses: actions/upload-artifact@v4
+        if: steps.upstream.outputs.changed == 'true'
+        with: { name: promoted-lock, path: releases.lock.json }
+      - uses: hashicorp/setup-terraform@v3
+        if: steps.upstream.outputs.changed == 'true'
+        with: { terraform_version: "1.13.5" }
+      - uses: astral-sh/setup-uv@v6
+        if: steps.upstream.outputs.changed == 'true'
+        with: { version: "0.12.21" }
+      - uses: actions/setup-node@v4
+        if: steps.upstream.outputs.changed == 'true'
+        with: { node-version: "24" }
+      - name: Validate and promote development
+        if: steps.upstream.outputs.changed == 'true'
+        env:
+          DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+          TF_CLI_ARGS_apply: -auto-approve
+          PRIVACY_OPERATOR: ${{ vars.PRIVACY_OPERATOR }}
+          PRIVACY_CONTACT: ${{ vars.PRIVACY_CONTACT }}
+          PRIVACY_READY: ${{ vars.PRIVACY_READY }}
+          APP_CHECK_SITE_KEY: ${{ vars.APP_CHECK_SITE_KEY }}
+          GOOGLE_AUTH_ENABLED: ${{ vars.GOOGLE_AUTH_ENABLED }}
+        run: |
+          mkdir -p .runtime
+          printf '%s\n' "$DEPLOY_CONFIG" > .runtime/dev.auto.tfvars
+          bash scripts/deploy.sh dev
+          gcloud storage cp releases.lock.json gs://opensiddur-builder-dev-tfstate/deployments/upstream-lock.json
+  production:
+    needs: development
+    if: needs.development.outputs.changed == 'true'
+    runs-on: ubuntu-latest
+    environment: prod
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { name: promoted-lock, path: . }
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v2
+      - uses: hashicorp/setup-terraform@v3
+        with: { terraform_version: "1.13.5" }
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.12.21" }
+      - uses: actions/setup-node@v4
+        with: { node-version: "24" }
+      - name: Validate and promote production
+        env:
+          DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+          TF_CLI_ARGS_apply: -auto-approve
+          PRIVACY_OPERATOR: ${{ vars.PRIVACY_OPERATOR }}
+          PRIVACY_CONTACT: ${{ vars.PRIVACY_CONTACT }}
+          PRIVACY_READY: ${{ vars.PRIVACY_READY }}
+          APP_CHECK_SITE_KEY: ${{ vars.APP_CHECK_SITE_KEY }}
+          GOOGLE_AUTH_ENABLED: ${{ vars.GOOGLE_AUTH_ENABLED }}
+        run: |
+          mkdir -p .runtime
+          printf '%s\n' "$DEPLOY_CONFIG" > .runtime/prod.auto.tfvars
+          bash scripts/deploy.sh prod
+          gcloud storage cp releases.lock.json gs://opensiddur-builder-prod-tfstate/deployments/upstream-lock.json

@@ -1,0 +1,4 @@
+import fs from 'node:fs';import path from 'node:path';
+const lock=JSON.parse(fs.readFileSync('web/package-lock.json','utf8'));const result=[];
+for(const [name,meta] of Object.entries(lock.packages)){if(!name||meta.dev)continue;const root=path.join('web',name);const packageFile=path.join(root,'package.json');if(!fs.existsSync(packageFile))continue;const pkg=JSON.parse(fs.readFileSync(packageFile,'utf8'));const texts=fs.readdirSync(root).filter(f=>/^(licen[cs]e|copying|notice)/i.test(f)&&fs.statSync(path.join(root,f)).isFile()).map(f=>fs.readFileSync(path.join(root,f),'utf8'));result.push({name:pkg.name,version:pkg.version,license:pkg.license||'Review upstream license',source:`https://www.npmjs.com/package/${pkg.name}/v/${pkg.version}`,text:texts.join('\n\n')});}
+fs.mkdirSync('.bundle',{recursive:true});fs.writeFileSync('.bundle/frontend-notices.json',JSON.stringify(result));
