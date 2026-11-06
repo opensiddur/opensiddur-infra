@@ -1,0 +1,70 @@
+name: Deploy Builder runtime
+on:
+  workflow_call:
+    inputs:
+      environment:
+        required: true
+        type: string
+      commit:
+        required: true
+        type: string
+      version:
+        type: string
+        default: ''
+      phase:
+        type: string
+        default: development
+      first_public_launch:
+        type: boolean
+        default: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.environment }}
+      url: ${{ format('https://opensiddur-builder-{0}.web.app', inputs.environment) }}
+    concurrency: deploy-${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+      - uses: hashicorp/setup-terraform@v4
+        with: { terraform_version: "1.13.5" }
+      - uses: astral-sh/setup-uv@v6
+        with: { version: "0.12.21", python-version: "3.12" }
+      - uses: actions/setup-node@v7
+        with: { node-version: "24" }
+      - name: Deploy verified source
+        env:
+          DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+          TF_CLI_ARGS_apply: -auto-approve
+          PRIVACY_OPERATOR: ${{ vars.PRIVACY_OPERATOR }}
+          PRIVACY_CONTACT: ${{ vars.PRIVACY_CONTACT }}
+          PRIVACY_READY: ${{ vars.PRIVACY_READY }}
+          APPROVED_PRIVACY_NOTICE: ${{ vars.APPROVED_PRIVACY_NOTICE }}
+          APP_CHECK_SITE_KEY: ${{ vars.APP_CHECK_SITE_KEY }}
+          GOOGLE_AUTH_ENABLED: ${{ vars.GOOGLE_AUTH_ENABLED }}
+          PILOT_OPERATORS: ${{ secrets.PILOT_OPERATORS }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          BUILDER_VERSION: ${{ inputs.version }}
+          DEPLOY_PHASE: ${{ inputs.phase }}
+          FIRST_PUBLIC_LAUNCH: ${{ inputs.first_public_launch }}
+        run: |
+          umask 077
+          mkdir -p .runtime
+          test -n "$DEPLOY_CONFIG"
+          printf '%s\n' "$DEPLOY_CONFIG" > ".runtime/$DEPLOY_ENVIRONMENT.auto.tfvars"
+          unset DEPLOY_CONFIG
+          bash scripts/deploy.sh "$DEPLOY_ENVIRONMENT"

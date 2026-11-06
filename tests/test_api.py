@@ -1,8 +1,12 @@
 import io
+import json
+import tempfile
 import time
 import unittest
 import uuid
 from dataclasses import replace
+from pathlib import Path
+from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 from opensiddur_infra.api import create_app
@@ -100,6 +104,71 @@ class ApiTests(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 202, response.text)
         return response.json()
+
+    def test_production_admission_and_release_health(self):
+        with tempfile.TemporaryDirectory() as bundle:
+            source = {"version": "v0.1.0", "infra_commit": "synthetic-commit"}
+            (Path(bundle) / "release.json").write_text(json.dumps(source))
+            config = replace(
+                Config(), release="test", bundle=bundle, enabled=False, app_check=True
+            )
+            pilot = TestClient(
+                create_app(
+                    config,
+                    self.store,
+                    Verifier(),
+                    Processor(),
+                    self.objects,
+                    Dispatcher(),
+                )
+            )
+            health = pilot.get("/api/v1/health").json()
+            self.assertEqual(
+                health,
+                {
+                    "ok": True,
+                    "release": "test",
+                    "submissions_enabled": False,
+                    "app_check_required": True,
+                    **source,
+                },
+            )
+            payload = {
+                "release": "test",
+                "settings": {"book": {"project": "synthetic"}},
+                "formats": ["html"],
+                "idempotency_key": str(uuid.uuid4()),
+            }
+            self.assertEqual(
+                pilot.post(
+                    "/api/v1/builds", headers=self.headers, json=payload
+                ).status_code,
+                503,
+            )
+            public = TestClient(
+                create_app(
+                    replace(config, enabled=True),
+                    self.store,
+                    Verifier(),
+                    Processor(),
+                    self.objects,
+                    Dispatcher(),
+                )
+            )
+            self.assertEqual(
+                public.post(
+                    "/api/v1/builds", headers=self.headers, json=payload
+                ).status_code,
+                403,
+            )
+            with patch("firebase_admin.app_check.verify_token") as verify:
+                result = public.post(
+                    "/api/v1/builds",
+                    headers={**self.headers, "X-Firebase-AppCheck": "synthetic"},
+                    json=payload,
+                )
+                verify.assert_called_once_with("synthetic")
+                self.assertEqual(result.status_code, 202, result.text)
 
     def test_history_is_newest_first_and_resolves_legacy_work_titles(self):
         owner = self.client.get("/api/v1/account", headers=self.headers).json()["id"]

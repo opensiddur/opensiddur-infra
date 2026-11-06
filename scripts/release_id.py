@@ -10,6 +10,7 @@ def release_identity():
         Path(x)
         for x in (
             "Dockerfile",
+            "pyproject.toml",
             "uv.lock",
             "releases.lock.json",
             "fonts.lock.json",
@@ -17,6 +18,9 @@ def release_identity():
             "web/package-lock.json",
         )
     ]
+    source = Path(".bundle/source.json")
+    if source.is_file() and '"version"' in source.read_text():
+        files.append(source)
     files += [
         p
         for root in roots

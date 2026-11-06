@@ -1,0 +1,124 @@
+name: Release Builder
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Builder tag (for example v0.1.0)'
+        required: true
+        type: string
+      operation:
+        description: Release and deploy, or retry production for a published tag
+        type: choice
+        default: release
+        options: [release, retry-production]
+      first_public_launch:
+        description: Stage an operator pilot before requesting public launch approval
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+concurrency:
+  group: builder-release
+  cancel-in-progress: false
+
+jobs:
+  resolve:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    outputs:
+      commit: ${{ steps.source.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Resolve pinned release commit
+        id: source
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          OPERATION: ${{ inputs.operation }}
+        run: bash scripts/resolve_release.sh "$VERSION" "$OPERATION"
+      - name: Require production reviewers
+        run: |
+          curl -fsS --max-time 20 "https://api.github.com/repos/$GITHUB_REPOSITORY/environments/prod" |
+            jq -e 'any(.protection_rules[]; .type == "required_reviewers" and (.reviewers | length > 0))' >/dev/null ||
+            { echo "Configure required reviewers on the prod environment before releasing." >&2; exit 1; }
+
+  development:
+    needs: resolve
+    if: inputs.operation == 'release'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-runtime.yml
+    with:
+      environment: dev
+      commit: ${{ needs.resolve.outputs.commit }}
+      version: ${{ inputs.version }}
+
+  publish:
+    needs: [resolve, development]
+    if: inputs.operation == 'release'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.resolve.outputs.commit }}
+          fetch-depth: 0
+      - name: Publish the verified version
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ inputs.version }}
+          COMMIT: ${{ needs.resolve.outputs.commit }}
+        run: |
+          notes="$RUNNER_TEMP/builder-release-notes.md"
+          python3 scripts/release_notes.py "$VERSION" > "$notes"
+          ref="refs/tags/$VERSION"
+          if git show-ref --verify --quiet "$ref"; then
+            test "$(git cat-file -t "$ref")" = tag
+            test "$(git rev-parse "$ref^{commit}")" = "$COMMIT"
+          else
+            git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+              tag -a "$VERSION" "$COMMIT" -F "$notes"
+            git push origin "$ref:$ref"
+          fi
+          gh release create "$VERSION" --verify-tag --title "$VERSION" --notes-file "$notes"
+
+  production-pilot:
+    needs: [resolve, publish]
+    if: >-
+      !cancelled() && needs.resolve.result == 'success' &&
+      (needs.publish.result == 'success' || (inputs.operation == 'retry-production' && needs.publish.result == 'skipped')) &&
+      (inputs.first_public_launch || inputs.version == 'v0.1.0')
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-runtime.yml
+    with:
+      environment: prod
+      commit: ${{ needs.resolve.outputs.commit }}
+      version: ${{ inputs.version }}
+      phase: pilot
+
+  production:
+    needs: [resolve, publish, production-pilot]
+    if: >-
+      !cancelled() && needs.resolve.result == 'success' &&
+      (needs.publish.result == 'success' || (inputs.operation == 'retry-production' && needs.publish.result == 'skipped')) &&
+      (needs.production-pilot.result == 'success' ||
+      (!inputs.first_public_launch && inputs.version != 'v0.1.0' && needs.production-pilot.result == 'skipped'))
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/deploy-runtime.yml
+    with:
+      environment: prod
+      commit: ${{ needs.resolve.outputs.commit }}
+      version: ${{ inputs.version }}
+      phase: public
+      first_public_launch: ${{ inputs.first_public_launch || inputs.version == 'v0.1.0' }}
