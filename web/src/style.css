@@ -532,25 +532,28 @@ footer {
 .account-menu[open] {
   z-index: 20;
 }
+.account-menu-panel {
+  position: absolute;
+  top: 100%;
+  right: 0;
+  width: 230px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.account-menu-name {
+  margin: 0;
+  padding: 12px;
+  overflow-wrap: anywhere;
+}
 .account-menu a,
 .account-menu button {
   display: block;
   padding: 12px;
-  width: 230px;
-  background: var(--surface);
+  width: 100%;
   color: var(--link);
   text-align: left;
-  border: 1px solid var(--border);
-}
-.account-menu a {
-  position: absolute;
-  top: 100%;
-  right: 0;
-}
-.account-menu button {
-  position: absolute;
-  top: calc(100% + 48px);
-  right: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
 }
 .account-page {
   min-height: 60vh;
