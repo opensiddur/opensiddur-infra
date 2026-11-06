@@ -716,7 +716,11 @@ export function App() {
     );
   }
   return (
-    <TypographyMetadata.Provider value={{ fonts: catalog?.font_catalog, codes: catalog?.running_head_codes }}>
+    <TypographyMetadata.Provider value={{
+      fonts: catalog?.font_catalog,
+      codes: catalog?.running_head_codes,
+      customFontFamilies: Object.keys(settings.typography?.fonts || {}),
+    }}>
     <SettingsEditContext.Provider value={reportPending}>
       <header>
         <div className="brand-row">
@@ -748,28 +752,31 @@ export function App() {
             }}
           >
             <summary>Account</summary>
-            <a
-              href="/#account"
-              onClick={(e) => {
-                openAccount(e);
-                e.currentTarget.closest("details")?.removeAttribute("open");
-              }}
-            >
-              {user ? "Account & saved presets" : "Sign in"}
-            </a>
-            {user && (
-              <button
+            <div className="account-menu-panel">
+              {user && <p className="account-menu-name">{user.displayName || user.email || "Signed in"}</p>}
+              <a
+                href="/#account"
                 onClick={(e) => {
+                  openAccount(e);
                   e.currentTarget.closest("details")?.removeAttribute("open");
-                  action(async () => {
-                    await logout();
-                    navigate("/#account");
-                  });
                 }}
               >
-                Sign out
-              </button>
-            )}
+                {user ? "Account & saved presets" : "Sign in"}
+              </a>
+              {user && (
+                <button
+                  onClick={(e) => {
+                    e.currentTarget.closest("details")?.removeAttribute("open");
+                    action(async () => {
+                      await logout();
+                      navigate("/#account");
+                    });
+                  }}
+                >
+                  Sign out
+                </button>
+              )}
+            </div>
           </details>
         </div>
         <nav>

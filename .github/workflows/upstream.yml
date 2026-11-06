@@ -28,7 +28,7 @@ jobs:
           cp releases.lock.json /tmp/previous-lock.json
           python scripts/check_releases.py
           if cmp -s releases.lock.json /tmp/previous-lock.json; then echo 'changed=false' >> "$GITHUB_OUTPUT"; else echo 'changed=true' >> "$GITHUB_OUTPUT"; fi
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: steps.upstream.outputs.changed == 'true'
         with: { name: promoted-lock, path: releases.lock.json }
       - uses: hashicorp/setup-terraform@v3
