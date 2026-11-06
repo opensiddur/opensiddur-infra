@@ -183,7 +183,15 @@ def create_app(
 
     @app.get("/api/v1/health")
     def health():
-        return {"ok": True, "release": config.release}
+        metadata = Path(config.bundle) / "release.json"
+        source = json.loads(metadata.read_text()) if metadata.is_file() else {}
+        return {
+            "ok": True,
+            "release": config.release,
+            "submissions_enabled": config.enabled,
+            "app_check_required": config.app_check,
+            **{key: source[key] for key in ("version", "infra_commit") if key in source},
+        }
 
     @app.get("/api/v1/catalog")
     def catalog():

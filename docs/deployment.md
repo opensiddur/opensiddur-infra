@@ -33,7 +33,7 @@ bash scripts/deploy.sh dev
 
 The script runs unit tests and frontend build, assembles license notices, builds images with Cloud Build, validates every bundled preset and produces demo PDF/HTML, resolves immutable image digests, applies the runtime stack, publishes Firebase Hosting, and checks health. A failed container smoke test prevents promotion. The infra lock controls shared Python dependencies; the upstream lock supplies additional processor packages. Package compatibility and ASGI app construction are checked before export smoke tests. Build logs and source archives are retained in the managed build bucket for 30 days.
 
-Run `scripts/deploy.sh prod` to deploy production after dev verification. Public submissions default off. Complete the privacy/legal tasks and authentication setup before setting `submissions_enabled = true` and `require_app_check = true` in the environment configuration.
+Use the [release procedure](../RELEASE_PROCEDURE.md) to deploy a tagged version to production. The first public launch requires an operator pilot, production reviewers, App Check, and the approved privacy notice.
 
 The first deployment uses exact upstream commit hashes in `releases.lock.json`. The job and preview services are versioned by a content hash covering application code, lockfiles and upstream references. Existing worker services/job definitions are retained in `release_images`, preserving queued jobs across updates. Keep images and definitions needed by outstanding work. Delete inactive versions only after confirming no queued/running build references them.
 
@@ -49,12 +49,12 @@ Internal account UUIDs are independent of Firebase UIDs. Token verification and 
 
 ## GitHub deployment
 
-Terraform creates a GitHub OIDC trust restricted to this repository and `refs/heads/main`. Configure GitHub `dev` and `prod` environments, (production reviewers are optional and pause automatic promotions):
+Terraform creates a GitHub OIDC trust restricted to this repository and `refs/heads/main`. Configure GitHub `dev` and `prod` environments. Production requires reviewers:
 
 - Variables: `WIF_PROVIDER`, `DEPLOY_SERVICE_ACCOUNT`, `PRIVACY_OPERATOR`, `PRIVACY_CONTACT`, `PRIVACY_READY`, `APP_CHECK_SITE_KEY`, `GOOGLE_AUTH_ENABLED`.
 - Secret: `DEPLOY_CONFIG`, containing the private environment tfvars (without image coordinates; release history is recovered from the private state bucket).
 
-Get provider and deployment identity with `terraform output`. Run the `Deploy` workflow from main. The scheduled upstream workflow detects new published pairs, verifies/deploys development first, and then verifies/promotes production; it records the deployed upstream lock in the state bucket. No published projects release means no automatic promotion. Runtime promotion uses an explicit Terraform target list in `scripts/runtime-targets.sh`, excluding foundation/IAM/billing resources; full reconciliation is the bootstrap command. IAM/bootstrap changes require the local privileged operator; the GitHub deployment identity is for existing-stack runtime updates. If a Terraform foundation change requires an additional privilege, apply that change locally rather than expanding the trust indiscriminately.
+Get the provider and deployment identity with `terraform output`. Run the `Deploy` workflow from main for development. The scheduled upstream workflow detects new published pairs and deploys them to development, recording the deployed upstream lock in the development state bucket. To ship those changes in production, review and commit the pins before tagging a Builder release. Runtime promotion uses an explicit Terraform target list in `scripts/runtime-targets.sh`, excluding foundation/IAM/billing resources; full reconciliation is the bootstrap command. IAM/bootstrap changes require the local privileged operator; the GitHub deployment identity is for existing-stack runtime updates. If a Terraform foundation change requires an additional privilege, apply that change locally rather than expanding the trust indiscriminately.
 
 ## Observe and intervene
 

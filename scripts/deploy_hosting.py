@@ -26,6 +26,14 @@ def call(method, url, **kwargs):
     return response.json() if response.content else {}
 
 
+if len(sys.argv) == 3:
+    version_name = sys.argv[2]
+    if not version_name.startswith(f"sites/{project}/versions/"):
+        raise SystemExit("Hosting version must belong to the selected site")
+    call("POST", f"{base}/sites/{project}/releases", params={"versionName": version_name})
+    print(version_name)
+    sys.exit()
+
 version = call(
     "POST",
     f"{base}/sites/{project}/versions",
@@ -60,4 +68,4 @@ call(
 call(
     "POST", f"{base}/sites/{project}/releases", params={"versionName": version["name"]}
 )
-print(f"https://{project}.web.app")
+print(version["name"])
