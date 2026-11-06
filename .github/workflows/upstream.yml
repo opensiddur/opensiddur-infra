@@ -18,7 +18,7 @@ jobs:
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
-      - uses: google-github-actions/setup-gcloud@v2
+      - uses: google-github-actions/setup-gcloud@v3
       - name: Discover new published pair
         id: upstream
         env: { GH_TOKEN: "${{ github.token }}" }
@@ -27,13 +27,13 @@ jobs:
           cp releases.lock.json /tmp/previous-lock.json
           python scripts/check_releases.py
           if cmp -s releases.lock.json /tmp/previous-lock.json; then echo 'changed=false' >> "$GITHUB_OUTPUT"; else echo 'changed=true' >> "$GITHUB_OUTPUT"; fi
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         if: steps.upstream.outputs.changed == 'true'
         with: { terraform_version: "1.13.5" }
       - uses: astral-sh/setup-uv@v6
         if: steps.upstream.outputs.changed == 'true'
         with: { version: "0.12.21" }
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: steps.upstream.outputs.changed == 'true'
         with: { node-version: "24" }
       - name: Validate and promote development
