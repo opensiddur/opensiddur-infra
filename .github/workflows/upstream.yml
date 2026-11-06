@@ -62,7 +62,7 @@ jobs:
     environment: prod
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with: { name: promoted-lock, path: . }
       - uses: google-github-actions/auth@v2
         with:
