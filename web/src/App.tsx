@@ -16,7 +16,7 @@ import {
 } from "./api";
 import { SchemaField, Sources, Declarations } from "./Settings";
 import { normalizeSettings } from "./settings-data";
-import { Allowance, PublishedPresets, projectLabel } from "./BuilderControls";
+import { Allowance, PublishedPresets, SettingHelp, projectLabel } from "./BuilderControls";
 import { SearchSelect } from "./SearchSelect";
 import { LicenseNotice } from "./LicenseNotice";
 import { BuildProgress } from "./BuildProgress";
@@ -935,10 +935,10 @@ export function App() {
                 />
                 Show advanced settings
               </label>
-              <span className="hint">
+              <SettingHelp label="Show advanced settings">
                 Includes starting files, the full settings editor, YAML and
                 TeX/XML output. Saved with your presets.
-              </span>
+              </SettingHelp>
             </div>
             <div className="configuration">
 
@@ -947,6 +947,7 @@ export function App() {
                   id="project"
                   required
                   label="Choose your starting text"
+                  help="The starting text supplies the structure of your book. Use Text priorities to choose which editions supply its passages."
                   labelClassName="eyebrow"
                   options={projects.map((p: Value) => ({
                     value: p.id,
@@ -964,7 +965,10 @@ export function App() {
                     <p className="selected-title">{projectLabel(selected)}</p>
                     {advanced && (
                       <details>
-                        <summary>Starting file</summary>
+                        <summary>
+                          Starting file
+                          <SettingHelp label="Starting file">Choose which XML file in the starting text to compile. The index usually starts the complete work.</SettingHelp>
+                        </summary>
                         <label>
                           Starting file
                           <select
@@ -1012,6 +1016,7 @@ export function App() {
                 {user ? presets.length > 0 ? (
                   <SearchSelect
                     label="Load a saved preset"
+                    help="Restore your saved book settings and output choices."
                     options={presets.map((preset) => ({ value: preset.id, label: preset.name }))}
                     value={loadedPreset}
                     disabled={loadingSettings}
@@ -1022,16 +1027,15 @@ export function App() {
                   />
                 ) : <p className="hint">Your saved presets will appear here.</p>
                   : <p><a href="/#account" onClick={openAccount}>Sign in to load a saved preset.</a></p>}
-                <label>
-                  Upload settings YAML
-                  <input type="file" accept=".yaml,.yml,application/yaml,text/yaml"
+                <label htmlFor="upload-settings">Upload settings YAML</label>
+                <SettingHelp label="Upload settings YAML">Replace the current settings with the choices in a YAML file, then continue editing below.</SettingHelp>
+                  <input id="upload-settings" type="file" accept=".yaml,.yml,application/yaml,text/yaml"
                     disabled={loadingSettings}
                     onChange={(event) => {
                       const file = event.currentTarget.files?.[0];
                       event.currentTarget.value = "";
                       if (file) action(() => importSettings(file));
                     }} />
-                </label>
                 <p className="hint">Load a preset or a YAML file to replace the current settings, then continue editing below.</p>
                 {loadingSettings && <p role="status">Loading settings…</p>}
               </div>
@@ -1148,9 +1152,11 @@ export function App() {
                     />
                   ))}
                 {tab === "Distribution" && (
-                  <label>
-                    Custom PNG/JPEG logo (5 MiB maximum)
+                  <div>
+                    <label htmlFor="upload-logo">Custom PNG/JPEG logo (5 MiB maximum)</label>
+                    <SettingHelp label="Custom logo">Upload a logo to include with the book’s distribution notice.</SettingHelp>
                     <input
+                      id="upload-logo"
                       type="file"
                       accept="image/png,image/jpeg"
                       disabled={!user || !hasConsent}
@@ -1176,7 +1182,7 @@ export function App() {
                         Remove uploaded logo
                       </button>
                     )}
-                  </label>
+                  </div>
                 )}
                 {tab === "Advanced" && (
                   <>
@@ -1199,7 +1205,10 @@ export function App() {
                           />
                         </details>
                       ))}
-                    <h3>Settings YAML</h3>
+                    <div className="source-heading">
+                      <h3>Settings YAML</h3>
+                      <SettingHelp label="Settings YAML">Edit the book settings as YAML. Select Apply YAML to load your edits into the builder.</SettingHelp>
+                    </div>
                     <textarea
                       aria-label="Settings YAML"
                       spellCheck={false}
@@ -1251,7 +1260,9 @@ export function App() {
               <section className="card output">
                 <h2>Create your book</h2>
                 <fieldset className={!formats.some((format) => advanced || ["pdf", "html"].includes(format)) ? "required-empty" : undefined}>
-                  <legend>Output formats<RequiredMark /></legend>
+                  <legend>Output formats<RequiredMark />
+                    <SettingHelp label="Output formats">Choose the files to create. PDF is for printing. HTML is a reflowable book you can read offline. TeX and XML are source files for further editing.</SettingHelp>
+                  </legend>
                 {["pdf", "html"].map((f) => (
                   <label className="check" key={f}>
                     <input
@@ -1334,13 +1345,12 @@ export function App() {
                   Preview sources are supplied automatically. Your chosen source
                   priorities apply when you build the complete book.
                 </p>
-                <label>
-                  Preview format
-                  <select value={previewMode} onChange={(e) => setPreviewMode(e.target.value as "html" | "pdf")}>
+                <label htmlFor="preview-format">Preview format</label>
+                <SettingHelp label="Preview format">Text shows a reflowable HTML sample. Print layout typesets a PDF sample to show how the pages will look in print.</SettingHelp>
+                  <select id="preview-format" value={previewMode} onChange={(e) => setPreviewMode(e.target.value as "html" | "pdf")}>
                     <option value="html">Text (HTML)</option>
                     <option value="pdf">Print layout (PDF)</option>
                   </select>
-                </label>
                 <SampleAllowance allowances={account?.allowances} />
                 {previewMode === "pdf" && <p className="hint">
                   Typesetting takes longer than text preview.

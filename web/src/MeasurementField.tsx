@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { SettingHelp } from "./BuilderControls";
 
 type Model = { units: string[]; patterns: string[] };
 export function measurementModel(variants: any[]): Model | undefined {
@@ -10,10 +11,10 @@ export function measurementModel(variants: any[]): Model | undefined {
   return units.length ? { units, patterns } : undefined;
 }
 const parse = (value: unknown) => typeof value === "string" ? value.match(/^(-?(?:\d+(?:\.\d+)?|\.\d+))([a-z]+|%)$/) : null;
-export function MeasurementField({ id, label, value, defaultValue, model, named = [], nullable, required, onChange, reportPending, numericPoints = false, schema = {} }: {
+export function MeasurementField({ id, label, value, defaultValue, model, named = [], nullable, required, onChange, reportPending, numericPoints = false, schema = {}, help }: {
   id: string; label: string; value: any; defaultValue: any; model: Model; named?: string[];
   nullable: boolean; required: boolean; onChange: (value: any) => void;
-  reportPending: (id: string, pending: boolean) => void; numericPoints?: boolean; schema?: any;
+  reportPending: (id: string, pending: boolean) => void; numericPoints?: boolean; schema?: any; help?: string;
 }) {
   function initial(current: any) {
     const displayed = current === undefined ? defaultValue : current;
@@ -46,6 +47,7 @@ export function MeasurementField({ id, label, value, defaultValue, model, named 
   function reset(next: null | undefined) { setDraft(initial(next)); onChange(next); }
   return <div className="field">
     <label htmlFor={named.length ? id + "-choice" : id}>{label}{required && <span className="required-mark" aria-label="required"> *</span>}</label>
+    {help && <SettingHelp label={label}>{help}</SettingHelp>}
     {named.length > 0 && <select id={id + "-choice"} aria-label={label + " choice"} value={draft.mode} onChange={e => {
       const mode = e.target.value;
       if (mode === "default") reset(undefined);

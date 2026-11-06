@@ -1,4 +1,3 @@
-
 """Exercise the real unprivileged worker, including all four output types and ZIP publication."""
 
 import json
@@ -125,6 +124,22 @@ for name in (
 ):
     assert len(outputs.files.get(name, b"")) > 0, name
 assert outputs.files["book.pdf"].startswith(b"%PDF")
+assert b"@font-face" not in outputs.files["book.html"]
+preview_settings = settings | {
+    "typography": {"fonts": {"latin": ["DejaVu Sans", "Liberation Serif"]}},
+}
+preview_outputs = Outputs()
+preview_row = builds.submit(owner, preview_settings, ["html"], "html", "font-smoke")
+execute(preview_row["id"], config, store, preview_outputs)
+preview_finished = builds.get(owner, preview_row["id"])
+assert preview_finished["state"] == "succeeded", preview_finished["results"]
+html_preview = preview_outputs.files["preview.html"]
+assert b'--font-latin: "DejaVu Sans", "Liberation Serif", serif;' in html_preview
+for family in (b"DejaVu Sans", b"Liberation Serif"):
+    assert (
+        b'@font-face { font-family: "' + family + b'"; src: url("data:font/'
+        in html_preview
+    )
 pdf_step = next(step for step in finished["steps"] if step["id"] == "pdf")
 assert pdf_step["pass_number"] >= 1, pdf_step
 assert all(step["state"] == "succeeded" for step in finished["steps"]), finished[

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import type { Value } from "./api";
 
 export function projectLabel(project: Value): string {
@@ -34,6 +34,20 @@ export function Help({
     </details>
   );
 }
+export function SettingHelp({ label, children }: { label: string; children: ReactNode }) {
+  const [open, setOpen] = useState(false);
+  const id = useId();
+  return (
+    <span className="setting-help">
+      <button type="button" aria-label={`About ${label}`} aria-expanded={open}
+        aria-controls={id} onClick={(event) => {
+          event.stopPropagation();
+          setOpen(!open);
+        }}>?</button>
+      <span id={id} hidden={!open}>{children}</span>
+    </span>
+  );
+}
 export function Allowance({ allowances }: { allowances?: Value }) {
   return allowances ? (
     <p className="allowance" role="status">
@@ -62,9 +76,13 @@ export function PublishedPresets({
   onChange: (value: string) => void;
 }) {
   return (
-    <label>
-      Starting preset
+    <div>
+      <label htmlFor="starting-preset">Starting preset</label>
+      <SettingHelp label="Starting preset">
+        A preset loads a starting set of choices. You can change them below.
+      </SettingHelp>
       <select
+        id="starting-preset"
         aria-label="Starting preset"
         value={value}
         onChange={(e) => {
@@ -80,9 +98,6 @@ export function PublishedPresets({
           </option>
         ))}
       </select>
-      <span className="hint">
-        A preset loads a starting set of choices. You can change them below.
-      </span>
-    </label>
+    </div>
   );
 }

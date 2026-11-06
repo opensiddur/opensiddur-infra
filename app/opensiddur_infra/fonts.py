@@ -1,5 +1,6 @@
 """Inventory the font faces that fontconfig actually resolves in the runtime image."""
 
+import base64
 import re
 import subprocess
 from collections import defaultdict
@@ -36,6 +37,55 @@ LABELS = {
     1: "Hebrew consonants only",
     0: "Partial Hebrew / historical scripts",
 }
+FONT_TYPES = {".otf": "otf", ".ttf": "ttf", ".ttc": "collection"}
+MAX_PREVIEW_FONT_BYTES = 8 * 1024**2
+
+
+def embed_preview_fonts(preview, settings_file, catalog):
+    """Embed installed faces for the HTML renderer's Latin and Hebrew CSS stacks."""
+    from opensiddur.exporter.cli_common import load_output_settings
+    from opensiddur.exporter.html.css import css_string
+
+    typography = load_output_settings(settings_file, resolve_fonts=False).typography
+    names = dict.fromkeys(
+        name
+        for family in ("latin", "hebrew")
+        for name in typography.fonts[family].names
+    )
+    installed = set(catalog["installed"])
+    remaining = MAX_PREVIEW_FONT_BYTES
+    rules = []
+    for name in names:
+        if name not in installed:
+            continue
+        match = subprocess.check_output(
+            ["fc-match", "--format", "%{file}\t%{family}", "--", name], text=True
+        )
+        file, _, families = match.partition("\t")
+        path = Path(file).resolve()
+        font_type = FONT_TYPES.get(path.suffix.lower())
+        if (
+            name not in families.split(",")
+            or not font_type
+            or not path.is_relative_to("/usr/share/fonts")
+            or not path.is_file()
+            or path.stat().st_size > remaining
+        ):
+            continue
+        data = path.read_bytes()
+        remaining -= len(data)
+        encoded = base64.b64encode(data).decode("ascii")
+        family = css_string(name).replace("<", r"\3c ")
+        rules.append(
+            f"@font-face {{ font-family: {family}; "
+            f'src: url("data:font/{font_type};base64,{encoded}"); }}'
+        )
+    if rules:
+        html = preview.read_text(encoding="utf-8")
+        style = "<style>\n" + "\n".join(rules) + "\n</style>\n"
+        preview.write_text(
+            html.replace("</head>", style + "</head>", 1), encoding="utf-8"
+        )
 
 
 def covers(charset, points):

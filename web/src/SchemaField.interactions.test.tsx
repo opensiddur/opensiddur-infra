@@ -45,8 +45,9 @@ it("sets a built-in font family from the installed catalog in standard mode", ()
   };
   render(
     <TypographyMetadata.Provider value={{ fonts: {
-      installed: ["Example Hebrew", "Example Latin"],
-      hebrew: [{ label: "Hebrew fonts", fonts: ["Example Hebrew"] }],
+      installed: ["Default Hebrew", "Example Hebrew", "Example Latin"],
+      defaults: { hebrew: "Default Hebrew", latin: "Example Latin" },
+      hebrew: [{ label: "Hebrew fonts", fonts: ["Default Hebrew", "Example Hebrew"] }],
       latin: [{ label: "Latin fonts", fonts: ["Example Latin"] }],
       other: [],
     } }}>
@@ -54,18 +55,28 @@ it("sets a built-in font family from the installed catalog in standard mode", ()
         value={undefined} onChange={changed} advanced={false} expanded />
     </TypographyMetadata.Provider>,
   );
-  fireEvent.click(screen.getByText("fonts", { selector: "summary" }));
+  const fonts = screen.getByText("fonts", { selector: "summary" });
+  const help = within(fonts).getByRole("button", { name: "About fonts" });
+  fireEvent.click(help);
+  expect(help.getAttribute("aria-expanded")).toBe("true");
+  expect(fonts.closest("details")?.open).toBe(false);
+  fireEvent.click(fonts);
   const hebrew = screen.getByText("hebrew", { selector: "summary" });
   fireEvent.click(hebrew);
   const family = within(hebrew.closest("details")!);
-  fireEvent.click(family.getByText("names", { selector: "summary" }));
-  fireEvent.click(family.getByRole("button", { name: "Add item" }));
+  const preferred = family.getByRole<HTMLSelectElement>("combobox", { name: "Preferred font" });
+  expect(preferred.value).toBe("");
+  fireEvent.change(preferred, { target: { value: "Example Hebrew" } });
+  expect(changed).toHaveBeenLastCalledWith({
+    fonts: { hebrew: { names: [{ name: "Example Hebrew" }] } },
+  });
+  fireEvent.click(family.getByRole("button", { name: "Add alternative font" }));
   fireEvent.change(family.getByRole("combobox", { name: /name/ }), {
     target: { value: "Example Hebrew" },
   });
-  fireEvent.click(family.getByRole("button", { name: "Add to list" }));
+  fireEvent.click(family.getByRole("button", { name: "Add alternative" }));
   expect(changed).toHaveBeenLastCalledWith({
-    fonts: { hebrew: { names: [{ name: "Example Hebrew" }] } },
+    fonts: { hebrew: { names: [{ name: "Default Hebrew" }, { name: "Example Hebrew" }] } },
   });
 });
 

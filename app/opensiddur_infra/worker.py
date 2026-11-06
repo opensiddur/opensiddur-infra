@@ -15,6 +15,7 @@ import yaml
 
 from .builds import Builds, Rejected
 from .config import Config
+from .fonts import embed_preview_fonts
 from .progress import Progress, build_steps, copy_log
 from .storage import Storage
 from .store import FirestoreStore
@@ -316,6 +317,10 @@ def execute(identifier, config=None, store=None, storage=None):
                             [compiled, out / filename, "-s", settings_file],
                             "Rendering HTML",
                         )
+                        if row["type"] == "html":
+                            embed_preview_fonts(
+                                out / filename, settings_file, catalog["font_catalog"]
+                            )
                     else:
                         compiled = compile_file("print")
                         if output == "xml":

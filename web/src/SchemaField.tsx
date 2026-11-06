@@ -1,6 +1,7 @@
 import { MeasurementField, measurementModel } from "./MeasurementField";
 import { FontSelect, RunningHeadHelp, TypographyMetadata, templateError } from "./TypographyControls";
 import { RequiredMark } from "./RequiredMark";
+import { SettingHelp } from "./BuilderControls";
 import { createContext, useContext, useEffect, useId, useState } from "react";
 export const SettingsEditContext = createContext<
   (id: string, pending: boolean) => void
@@ -155,6 +156,33 @@ const objectValue = (value: Value) =>
   value && typeof value === "object" && !Array.isArray(value) ? value : {};
 
 const FieldPath = createContext<string[]>([]);
+const fieldHelp: Record<string, string> = {
+  project: "Choose the source project that supplies the structure and starting text for the book.",
+  file_name: "Choose the XML entry point within the starting project.",
+  title: "Set the title displayed for this book.",
+  transclusion: "Choose source projects in order of preference for included passages.",
+  instructions: "Choose source projects in order of preference for recitation instructions.",
+  projects: "Choose translation projects in order of preference.",
+  notice: "Choose how attribution and licensing are displayed in the book.",
+  back_notice: "Choose the notice shown at the end of the book.",
+  electronic: "Set the behavior of the reflowable HTML book.",
+  print: "Set the option used for printed output.",
+  logo: "Choose the logo shown with the publication notice.",
+  position: "Choose where the notice appears in the book.",
+  text: "Enter the text that appears in this part of the book.",
+  day: "Choose the initial calendar setting for the electronic book.",
+  columns: "Choose how parallel text is displayed when the HTML book opens.",
+  psalm_titles: "Choose how psalm titles appear in the electronic book.",
+  commentary: "Control whether repeated commentary appears only once.",
+  editorial: "Control whether repeated editorial notes appear only once.",
+  all: "Apply this header or footer to every page.",
+  odd: "Apply this header or footer to odd pages.",
+  even: "Apply this header or footer to even pages.",
+  language: "Set the language of this text, for example en for English or he for Hebrew.",
+  if: "Show this part of the header or footer only when the placeholder has a value.",
+  normal_size: "Set the normal print size for this font in points.",
+};
+const fontPriorityHelp = "Fonts are tried in order, starting with the preferred font. An alternative supplies characters the browser cannot display with an earlier font.";
 export function SchemaField(props: Parameters<typeof SchemaFieldInner>[0]) {
   const parent = useContext(FieldPath);
   return <FieldPath.Provider value={[...parent, props.label.replaceAll(" ", "_")]}><SchemaFieldInner {...props} /></FieldPath.Provider>;
@@ -232,8 +260,8 @@ function SchemaFieldInner({
       {showDefaultValue ? `Reset to ${s.default == null ? "(undefined)" : typeof s.default === "boolean" ? (s.default ? "Yes" : "No") : String(s.default)}` : "(default)"}
     </button>
   );
-  const description =
-    advanced && s.description ? <p className="hint">{s.description}</p> : null;
+  const help = s.description || fieldHelp[path.at(-1) || ""] ||
+    (objectSchema ? `Settings that control ${label}.` : `Choose a value for ${label}, or use the default supplied by the builder.`);
   if (objectSchema) {
     const group = { ...objectSchema, ...resolve(schema, root) };
     const properties = path.length === 2 && path[0] === "typography" && path[1] === "fonts" &&
@@ -269,10 +297,11 @@ function SchemaFieldInner({
         <summary>
           {fieldLabel}
           {value === undefined && <span className="hint"> (default)</span>}
+          {runningHead && ["page_header", "page_footer"].includes(path.at(-1) || "")
+            ? <RunningHeadHelp label={label} codes={metadata.codes} />
+            : <SettingHelp label={label}>{help}</SettingHelp>}
         </summary>
         {reset}
-        {runningHead && ["page_header", "page_footer"].includes(path.at(-1) || "") && <RunningHeadHelp label={label} codes={metadata.codes} />}
-        {description}
         {objectDraft !== undefined && (
           <p className="hint" role="status">
             Complete valid values to apply these changes.
@@ -420,6 +449,9 @@ function SchemaFieldInner({
   }
   if (s.type === "array") {
     const entries = Array.isArray(value) ? value : [];
+    const fontFamily = path.length === 4 && path[0] === "typography" &&
+      path[1] === "fonts" && path[3] === "names" ? path[2] : undefined;
+    const defaultFont = fontFamily && metadata.fonts?.defaults?.[fontFamily];
     const remove = (index: number) => {
       const next = entries.filter((_: Value, i: number) => i !== index);
       onChange(next.length < (s.minItems || 0) ? undefined : next);
@@ -427,14 +459,27 @@ function SchemaFieldInner({
     return (
       <details
         className="field field-group"
-        open={expanded || value !== undefined || adding}
+        open={!!fontFamily || expanded || value !== undefined || adding}
       >
         <summary>
-          {fieldLabel}
-          {value === undefined && <span className="hint"> (default)</span>}
+          {fontFamily ? "Font priority" : fieldLabel}
+          {!fontFamily && value === undefined && <span className="hint"> (default)</span>}
+          <SettingHelp label={fontFamily ? "Font priority" : label}>
+            {fontFamily ? fontPriorityHelp : help}
+          </SettingHelp>
         </summary>
-        {reset}
-        {description}
+        {(!fontFamily || entries.length > 0) && reset}
+        {fontFamily && entries.length === 0 && (
+          <FontSelect
+            id={id}
+            label="Preferred font"
+            family={fontFamily}
+            catalog={metadata.fonts}
+            required={false}
+            help="Choose the first font to try for this script. Default uses the compiler’s built-in font."
+            onChange={(name) => onChange(name ? [{ name }] : undefined)}
+          />
+        )}
         {entries.map((v: Value, i: number) => (
           <div className="array-item" key={i}>
             <SchemaField
@@ -442,7 +487,8 @@ function SchemaFieldInner({
               schema={s.items || {}}
               root={root}
               value={v}
-              label={`Item ${i + 1}`}
+              label={fontFamily ? i === 0 ? "Preferred font" : `Alternative font ${i}` : `Item ${i + 1}`}
+              expanded={!!fontFamily}
               required
               onChange={(v) =>
                 v === undefined
@@ -454,19 +500,24 @@ function SchemaFieldInner({
                     )
               }
             />
-            <button onClick={() => remove(i)}>Remove item {i + 1}</button>
+            {(!fontFamily || i > 0) && (
+              <button onClick={() => remove(i)}>
+                {fontFamily ? `Remove alternative ${i}` : `Remove item ${i + 1}`}
+              </button>
+            )}
           </div>
         ))}
         {!(s.minItems > 0) && (
           <button onClick={() => onChange([])}>No items</button>
         )}
         <button
+          disabled={!!fontFamily && !entries.length && !defaultFont}
           onClick={() => {
             setAdding(true);
             setDraft(undefined);
           }}
         >
-          Add item
+          {fontFamily ? "Add alternative font" : "Add item"}
         </button>
         {adding && (
           <div className="item-draft">
@@ -476,21 +527,22 @@ function SchemaFieldInner({
               schema={s.items || {}}
               root={root}
               value={draft}
-              label="New item"
+              label={fontFamily ? "New alternative font" : "New item"}
               required
               onChange={setDraft}
             />
-            <p className="hint">
+            {!fontFamily && <p className="hint">
               Complete the item before adding it to your settings.
-            </p>
+            </p>}
             <button
               disabled={!validDraft(s.items || {}, root, draft)}
               onClick={() => {
-                onChange([...entries, draft]);
+                const preferred = !entries.length && defaultFont ? [{ name: defaultFont }] : entries;
+                onChange([...preferred, draft]);
                 setAdding(false);
               }}
             >
-              Add to list
+              {fontFamily ? "Add alternative" : "Add to list"}
             </button>
             <button onClick={() => setAdding(false)}>Cancel</button>
           </div>
@@ -501,7 +553,8 @@ function SchemaFieldInner({
   const fontRoot = path.indexOf("fonts");
   if (fontRoot >= 0 && path.includes("names") && path.at(-1) === "name") {
     return <FontSelect id={id} label={fieldLabel} value={value} family={path[fontRoot + 1]}
-      catalog={metadata.fonts} onChange={onChange} required={isRequired} />;
+      catalog={metadata.fonts} onChange={onChange} required={isRequired}
+      help="Choose an installed font for this position in the priority list." />;
   }
   const numericPoints = fontRoot >= 0 && path.at(-1) === "normal_size";
   const measurement = measurementModel(model.variants);
@@ -509,7 +562,7 @@ function SchemaFieldInner({
     return <MeasurementField id={id} label={label} value={value} defaultValue={s.default}
       model={measurement || { units: ["pt"], patterns: [] }} named={literals.filter((v: Value) => typeof v === "string")}
       nullable={model.nullable} required={isRequired} numericPoints={numericPoints} schema={s}
-      onChange={onChange} reportPending={reportPending} />;
+      onChange={onChange} reportPending={reportPending} help={help} />;
   }
   const range =
     s.type === "integer" || s.type === "number" ? numericChoices(s) : null;
@@ -646,8 +699,8 @@ function SchemaFieldInner({
   return (
     <div className="field">
       <label htmlFor={id}>{fieldLabel}</label>
-      {description}
-      {template && <RunningHeadHelp label={label} codes={metadata.codes} />}
+      {template ? <RunningHeadHelp label={label} codes={metadata.codes} />
+        : <SettingHelp label={label}>{help}</SettingHelp>}
       {editor}
       {fieldError && <p className="field-error" role="alert">{fieldError}</p>}
       {template && value && !fieldError && <p className="hint" role="status">Valid header/footer template.</p>}

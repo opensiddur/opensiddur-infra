@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Value } from "./api";
-import { Help, projectLabel } from "./BuilderControls";
+import { Help, SettingHelp, projectLabel } from "./BuilderControls";
 import { SearchSelect } from "./SearchSelect";
 import { SchemaField } from "./SchemaField";
 export { SchemaField, resolve } from "./SchemaField";
@@ -118,8 +118,10 @@ export function Declarations({
         open. Source texts can supply local values; calculated settings depend on
         other inputs such as date and location.
       </p>
+      <label htmlFor="customs-group">Add setting group</label>
+      <SettingHelp label="Add setting group">Choose a category of customs, calendar values, or other conditions to configure.</SettingHelp>
       <select
-        aria-label="Add setting group"
+        id="customs-group"
         value=""
         onChange={(e) => onChange({ ...value, [e.target.value]: {} })}
       >
@@ -134,6 +136,7 @@ export function Declarations({
       </select>
       {Object.entries(value || {}).map(([group, entries]) => {
         const definition = registry?.[group] || {};
+        const groupLabel = group.replace("opensiddur:", "");
         const features = [
           ...new Set([
             ...Object.keys(definition.features || {}),
@@ -143,7 +146,14 @@ export function Declarations({
         ];
         return (
           <details key={group} open>
-            <summary>{group.replace("opensiddur:", "")}</summary>
+            <summary>
+              {groupLabel}
+              <SettingHelp label={groupLabel}>
+                {definition.supplied === "derived"
+                  ? "These values are calculated from other settings. Set a value here to override the calculation."
+                  : `These values control which passages conditioned on ${groupLabel} are included.`}
+              </SettingHelp>
+            </summary>
             {definition.supplied === "derived" && (
               <p className="hint">
                 Normally calculated from other settings; use these fields only
@@ -154,8 +164,8 @@ export function Declarations({
               const kind =
                 definition.features?.[feature] || definition.open?.value;
               const current = (entries as Value)[feature];
-              const label =
-                labels?.features?.[group]?.[feature]?.label || feature;
+              const featureInfo = labels?.features?.[group]?.[feature];
+              const label = featureInfo?.label || feature;
               const scalar =
                 kind === "binary"
                   ? { type: "boolean" }
@@ -182,7 +192,12 @@ export function Declarations({
                   key={feature}
                   label={label}
                   root={{}}
-                  schema={{ anyOf: [scalar, { type: "null" }], default: defaults[group]?.[feature] ?? null }}
+                  schema={{
+                    anyOf: [scalar, { type: "null" }],
+                    default: defaults[group]?.[feature] ?? null,
+                    description: featureInfo?.description || featureInfo?.note ||
+                      `Sets ${label} for conditions in ${groupLabel}. Use (undefined) to leave the condition open.`,
+                  }}
                   showDefaultValue
                   value={current}
                   onChange={(next) => update(group, feature, next)}
@@ -192,6 +207,7 @@ export function Declarations({
             })}
             {definition.open && (
               <div className="row">
+                <SettingHelp label={`Additional ${group} feature`}>Enter a feature name or condition URN used by your source text.</SettingHelp>
                 <input
                   aria-label={`Additional ${group} feature`}
                   placeholder="Additional feature name / condition URN"

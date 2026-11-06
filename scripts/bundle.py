@@ -7,6 +7,7 @@ import yaml
 from lxml import etree
 from opensiddur.exporter.derived_settings import STATIC_DEFAULTS
 from opensiddur.exporter.tex.running_heads import RUNNING_HEAD_CODES
+from opensiddur.exporter.typography import TypographyConfig
 from opensiddur_infra.fonts import inventory
 
 processor = Path(os.environ.get("PROCESSOR_DIR", "/opt/processor"))
@@ -19,6 +20,9 @@ from release_id import release_identity
 
 release = release_identity()
 fonts = inventory()
+fonts["defaults"] = {
+    family: chain.names[0] for family, chain in TypographyConfig().fonts.items()
+}
 result = []
 for project in sorted(projects.iterdir()):
     if not (project / "index.xml").exists():

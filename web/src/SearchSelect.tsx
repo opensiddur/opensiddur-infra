@@ -1,4 +1,5 @@
 import { RequiredMark } from "./RequiredMark";
+import { SettingHelp } from "./BuilderControls";
 import { useEffect, useId, useRef, useState } from "react";
 
 export type SearchOption = { value: string; label: string; keywords?: string };
@@ -48,6 +49,7 @@ export function SearchSelect({
   onTextChange,
   maxLength,
   autoFocus = false,
+  help,
 }: {
   id?: string;
   label: string;
@@ -64,6 +66,7 @@ export function SearchSelect({
   onTextChange?: (value: string) => void;
   maxLength?: number;
   autoFocus?: boolean;
+  help?: string;
 }) {
   const generated = useId();
   const inputId = id || generated;
@@ -105,6 +108,7 @@ export function SearchSelect({
       <label htmlFor={inputId} className={labelClassName}>
         {label}{required && <RequiredMark />}
       </label>
+      {help && <SettingHelp label={label}>{help}</SettingHelp>}
       <div className="search-input">
         <input
           id={inputId}
