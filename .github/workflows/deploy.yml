@@ -22,7 +22,7 @@ jobs:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
           service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
       - uses: google-github-actions/setup-gcloud@v2
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with: { terraform_version: "1.13.5" }
       - uses: astral-sh/setup-uv@v6
         with: { version: "0.12.21" }
