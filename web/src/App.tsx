@@ -1414,7 +1414,8 @@ export function App() {
 
         </>
       )}
-      <StatusUpdates current={updates.current} history={updates.history} onDismiss={updates.dismiss} />
+      <StatusUpdates current={updates.current} history={updates.history}
+        onDismiss={updates.dismiss} onDismissAll={updates.reset} />
       <footer>
         <a href="https://opensiddur.org/">the Open Siddur Project</a>
         <a href="/privacy">Privacy</a>

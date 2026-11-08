@@ -10,7 +10,7 @@ function Example() {
     <button onClick={() => updates.error("Could not save.")}>Fail</button>
     <button onClick={updates.reset}>Sign out</button>
     <input aria-label="Continue editing" />
-    <StatusUpdates {...updates} onDismiss={updates.dismiss} />
+    <StatusUpdates {...updates} onDismiss={updates.dismiss} onDismissAll={updates.reset} />
   </>;
 }
 afterEach(() => { cleanup(); vi.useRealTimers(); });
@@ -25,11 +25,11 @@ it("clears the status automatically, retains expandable history and never takes 
   expect(screen.getByRole("status").textContent).toBe("Settings loaded.");
   act(() => vi.advanceTimersByTime(8000));
   expect(screen.getByRole("status").textContent).toBe("Ready.");
-  const expand = screen.getByRole("button", { name: "Updates (1)" });
+  const expand = screen.getByRole("button", { name: "Notifications (1)" });
   fireEvent.click(expand);
   expect(expand.getAttribute("aria-expanded")).toBe("true");
   expect(screen.getByText("Settings loaded.")).toBeTruthy();
-  fireEvent.click(screen.getByRole("button", { name: "Close update history" }));
+  fireEvent.click(screen.getByRole("button", { name: "Close notification history" }));
   expect(screen.queryByText("Settings loaded.")).toBeNull();
   expect(expand.getAttribute("aria-expanded")).toBe("false");
 });
@@ -37,21 +37,21 @@ it("dismisses a current message from history too, and can remove an expired mess
   vi.useFakeTimers();
   render(<Example />);
   fireEvent.click(screen.getByRole("button", { name: "Load settings" }));
-  fireEvent.click(screen.getByRole("button", { name: "Dismiss current update" }));
-  expect(screen.getByRole("button", { name: "Updates (0)" }).hasAttribute("disabled")).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss current notification" }));
+  expect(screen.getByRole("button", { name: "Notifications (0)" }).hasAttribute("disabled")).toBe(true);
   fireEvent.click(screen.getByRole("button", { name: "Load settings" }));
   act(() => vi.advanceTimersByTime(8000));
-  fireEvent.click(screen.getByRole("button", { name: "Updates (1)" }));
-  fireEvent.click(screen.getByRole("button", { name: "Dismiss update: Settings loaded." }));
+  fireEvent.click(screen.getByRole("button", { name: "Notifications (1)" }));
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss notification: Settings loaded." }));
   expect(screen.queryByText("Settings loaded.")).toBeNull();
-  expect(screen.queryByRole("heading", { name: "Recent updates" })).toBeNull();
+  expect(screen.queryByRole("heading", { name: "Notifications" })).toBeNull();
 });
 it("keeps newer errors when an older history entry is dismissed and clears history on sign out", () => {
   render(<Example />);
   fireEvent.click(screen.getByRole("button", { name: "Load settings" }));
   fireEvent.click(screen.getByRole("button", { name: "Fail" }));
-  fireEvent.click(screen.getByRole("button", { name: "Updates (2)" }));
-  fireEvent.click(screen.getByRole("button", { name: "Dismiss update: Settings loaded." }));
+  fireEvent.click(screen.getByRole("button", { name: "Notifications (2)" }));
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss notification: Settings loaded." }));
   expect(screen.getByRole("alert").textContent).toBe("Could not save.");
   expect(within(screen.getByRole("list")).getByText("Error: Could not save.")).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
@@ -68,5 +68,22 @@ it("repeated messages get a fresh lifetime instead of being cleared by an earlie
   expect(screen.getByRole("status").textContent).toBe("Settings loaded.");
   act(() => vi.advanceTimersByTime(7000));
   expect(screen.getByRole("status").textContent).toBe("Ready.");
-  expect(screen.getByRole("button", { name: "Updates (2)" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Notifications (2)" })).toBeTruthy();
+});
+it("dismisses all notifications and allows new notifications afterwards", () => {
+  vi.useFakeTimers();
+  render(<Example />);
+  fireEvent.click(screen.getByRole("button", { name: "Load settings" }));
+  fireEvent.click(screen.getByRole("button", { name: "Fail" }));
+  fireEvent.click(screen.getByRole("button", { name: "Notifications (2)" }));
+  fireEvent.click(screen.getByRole("button", { name: "Dismiss All" }));
+  expect(screen.queryByRole("heading", { name: "Notifications" })).toBeNull();
+  expect(screen.queryByRole("alert")).toBeNull();
+  expect(screen.getByRole("status").textContent).toBe("Ready.");
+  expect(screen.getByRole<HTMLButtonElement>("button", { name: "Notifications (0)" }).disabled).toBe(true);
+  fireEvent.click(screen.getByRole("button", { name: "Load settings" }));
+  act(() => vi.advanceTimersByTime(1000));
+  expect(screen.getByRole("status").textContent).toBe("Settings loaded.");
+  fireEvent.click(screen.getByRole("button", { name: "Notifications (1)" }));
+  expect(within(screen.getByRole("list")).getByText("Settings loaded.")).toBeTruthy();
 });
