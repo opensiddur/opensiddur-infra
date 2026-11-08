@@ -9,6 +9,8 @@ jobs:
   development:
     if: github.ref == 'refs/heads/main'
     uses: ./.github/workflows/deploy-runtime.yml
+    secrets:
+      DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
     with:
       environment: dev
       commit: ${{ github.sha }}

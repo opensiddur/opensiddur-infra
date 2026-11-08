@@ -1,6 +1,11 @@
 name: Deploy Builder runtime
 on:
   workflow_call:
+    secrets:
+      DEPLOY_CONFIG:
+        required: true
+      PILOT_OPERATORS:
+        required: false
     inputs:
       environment:
         required: true
