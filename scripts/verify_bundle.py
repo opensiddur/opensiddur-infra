@@ -159,7 +159,11 @@ assert b"{logo.png}" in outputs.files["book.tex"], (
     "TeX logo must remain portable and sandbox-compatible"
 )
 tex = outputs.files["book.tex"].decode()
-sample_text = "A demonstration passage shown when a minyan is selected."
+# The preview's text is the names of its styles. The English passage the Hebrew book shows
+# when a minyan is selected (preview-he/index.xml) is the only one with 22 words of "body"
+# in a row: the parallel column's English passages are shorter.
+sample_text = " ".join(["body"] * 22)
+assert tex.count(sample_text) == 1, "English minyan sample must appear exactly once"
 sample_position = tex.index(sample_text)
 assert r"\setdefaultlanguage{english}" in tex
 prefix = tex[:sample_position]
