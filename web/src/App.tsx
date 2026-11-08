@@ -1074,7 +1074,8 @@ export function App() {
                 {tab === "Typography" && (
                   <p className="hint">
                     Choose fonts, text sizes and page layout. Use (default)
-                    to leave a setting to the compiler. Print preview shows these changes.
+                    to leave a setting to the compiler. Text and print previews show
+                    typography changes. Page-specific settings affect printed output.
                   </p>
                 )}
                 {tab === "Distribution" && (

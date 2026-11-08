@@ -124,9 +124,16 @@ for name in (
 ):
     assert len(outputs.files.get(name, b"")) > 0, name
 assert outputs.files["book.pdf"].startswith(b"%PDF")
-assert b"@font-face" not in outputs.files["book.html"]
+assert b"@font-face" in outputs.files["book.html"]
 preview_settings = settings | {
-    "typography": {"fonts": {"latin": ["DejaVu Sans", "Liberation Serif"]}},
+    "typography": {
+        "fonts": {
+            "latin": [{"name": "DejaVu Sans", "normal_size": 12}, "Liberation Serif"],
+            "hebrew": [{"name": "FreeSerif", "normal_size": 16}],
+            "display": [{"name": "DejaVu Sans Mono", "normal_size": 20}],
+        },
+        "styles": {"heading1": {"font": "display", "size": "large"}},
+    },
 }
 preview_outputs = Outputs()
 preview_row = builds.submit(owner, preview_settings, ["html"], "html", "font-smoke")
@@ -135,7 +142,10 @@ preview_finished = builds.get(owner, preview_row["id"])
 assert preview_finished["state"] == "succeeded", preview_finished["results"]
 html_preview = preview_outputs.files["preview.html"]
 assert b'--font-latin: "DejaVu Sans", "Liberation Serif", serif;' in html_preview
-for family in (b"DejaVu Sans", b"Liberation Serif"):
+assert b"--normal-latin: 12pt;" in html_preview
+assert b"--normal-hebrew: 16pt;" in html_preview
+assert b"--normal-display: 20pt;" in html_preview
+for family in (b"DejaVu Sans", b"Liberation Serif", b"FreeSerif", b"DejaVu Sans Mono"):
     assert (
         b'@font-face { font-family: "' + family + b'"; src: url("data:font/'
         in html_preview
