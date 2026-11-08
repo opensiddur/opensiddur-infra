@@ -1,6 +1,8 @@
 """Inventory the font faces that fontconfig actually resolves in the runtime image."""
 
 import base64
+import html
+import json
 import re
 import subprocess
 from collections import defaultdict
@@ -38,23 +40,26 @@ LABELS = {
     0: "Partial Hebrew / historical scripts",
 }
 FONT_TYPES = {".otf": "otf", ".ttf": "ttf", ".ttc": "collection"}
-MAX_PREVIEW_FONT_BYTES = 8 * 1024**2
+FONT_ROOTS = (
+    "/usr/share/fonts",
+    "/usr/local/share/fonts",
+    "/usr/share/texmf/fonts",
+    "/usr/share/texlive/texmf-dist/fonts",
+)
 
 
-def embed_preview_fonts(preview, settings_file, catalog):
-    """Embed installed faces for the HTML renderer's Latin and Hebrew CSS stacks."""
+def embed_html_fonts(output, settings_file, catalog, notices_file=None):
+    """Embed installed faces and select their matching normal sizes for offline HTML."""
     from opensiddur.exporter.cli_common import load_output_settings
     from opensiddur.exporter.html.css import css_string
 
     typography = load_output_settings(settings_file, resolve_fonts=False).typography
     names = dict.fromkeys(
-        name
-        for family in ("latin", "hebrew")
-        for name in typography.fonts[family].names
+        name for family in typography.fonts for name in typography.fonts[family].names
     )
     installed = set(catalog["installed"])
-    remaining = MAX_PREVIEW_FONT_BYTES
     rules = []
+    available = set()
     for name in names:
         if name not in installed:
             continue
@@ -67,24 +72,55 @@ def embed_preview_fonts(preview, settings_file, catalog):
         if (
             name not in families.split(",")
             or not font_type
-            or not path.is_relative_to("/usr/share/fonts")
+            or not any(path.is_relative_to(root) for root in FONT_ROOTS)
             or not path.is_file()
-            or path.stat().st_size > remaining
         ):
             continue
         data = path.read_bytes()
-        remaining -= len(data)
+        available.add(name)
         encoded = base64.b64encode(data).decode("ascii")
         family = css_string(name).replace("<", r"\3c ")
         rules.append(
             f"@font-face {{ font-family: {family}; "
             f'src: url("data:font/{font_type};base64,{encoded}"); }}'
         )
+    sizes = []
+    for family, chain in typography.fonts.items():
+        selected = next(
+            (entry for entry in chain.entries if entry.name in available), None
+        )
+        if selected is not None:
+            size = (
+                f"{selected.normal_size:g}pt"
+                if selected.normal_size is not None
+                else typography.page.base_font_size.value
+            )
+            sizes.append(f"--normal-{family}: {size};")
     if rules:
-        html = preview.read_text(encoding="utf-8")
+        rules.append(":root { " + " ".join(sizes) + " }")
+        document = output.read_text(encoding="utf-8")
         style = "<style>\n" + "\n".join(rules) + "\n</style>\n"
-        preview.write_text(
-            html.replace("</head>", style + "</head>", 1), encoding="utf-8"
+        if notices_file is not None:
+            components = json.loads(notices_file.read_text())["components"]
+            notices = "\n\n".join(
+                "\n".join(
+                    str(component.get(key, "")) for key in ("name", "source", "text")
+                )
+                for component in components
+                if component["name"].startswith("fonts-")
+                or component["name"].startswith("texlive-fonts")
+                or component["name"] == "Open Siddur font pack"
+                or component.get("version") == "license text"
+            )
+            document = document.replace(
+                "</body>",
+                "<details><summary>Embedded font notices</summary><pre>"
+                + html.escape(notices)
+                + "</pre></details></body>",
+                1,
+            )
+        output.write_text(
+            document.replace("</head>", style + "</head>", 1), encoding="utf-8"
         )
 
 

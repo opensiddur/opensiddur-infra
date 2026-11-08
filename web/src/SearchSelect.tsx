@@ -80,8 +80,7 @@ export function SearchSelect({
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLUListElement>(null);
   const matches = searchMatches(options, allowCustom ? query : query === optionLabel && !!value ? "" : query);
-  const shown = matches.slice(0, 8);
-  const current = Math.min(active, Math.max(0, shown.length - 1));
+  const current = Math.min(active, Math.max(0, matches.length - 1));
   useEffect(() => setQuery(selectedLabel), [value, selectedLabel]);
   useEffect(() => {
     if (open)
@@ -124,7 +123,7 @@ export function SearchSelect({
           aria-expanded={open}
           aria-controls={listId}
           aria-activedescendant={
-            open && shown.length ? `${listId}-${current}` : undefined
+            open && matches.length ? `${listId}-${current}` : undefined
           }
           disabled={disabled}
           value={query}
@@ -147,16 +146,16 @@ export function SearchSelect({
                 !open
                   ? e.key === "ArrowDown"
                     ? 0
-                    : Math.max(0, shown.length - 1)
+                    : Math.max(0, matches.length - 1)
                   : (current +
                       (e.key === "ArrowDown" ? 1 : -1) +
-                      Math.max(1, shown.length)) %
-                      Math.max(1, shown.length),
+                      Math.max(1, matches.length)) %
+                      Math.max(1, matches.length),
               );
             } else if (e.key === "Enter" && open) {
-              if (shown[current]) {
+              if (matches[current]) {
                 e.preventDefault();
-                select(shown[current]);
+                select(matches[current]);
               } else if (!allowCustom) e.preventDefault();
               else setOpen(false);
             } else if (e.key === "Escape") {
@@ -205,7 +204,7 @@ export function SearchSelect({
             aria-label={`${label} matches`}
             ref={listRef}
           >
-            {shown.map((option, i) => (
+            {matches.map((option, i) => (
               <li
                 role="option"
                 id={`${listId}-${i}`}
@@ -221,7 +220,7 @@ export function SearchSelect({
           </ul>
           <p className="search-status" role="status">
             {matches.length
-              ? `${matches.length} match${matches.length === 1 ? "" : "es"}${matches.length > shown.length ? "; showing the top 8. Keep typing to narrow the list." : "."}`
+              ? `${matches.length} match${matches.length === 1 ? "" : "es"}.`
               : allowCustom ? "New preset name. Save to create it." : "No matching titles. Try another spelling."}
           </p>
         </div>

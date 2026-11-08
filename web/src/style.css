@@ -431,6 +431,8 @@ body { padding-bottom: 64px; }
 .update-line button { flex-shrink: 0; }
 .update-history { max-height: 45vh; overflow-y: auto; border-bottom: 1px solid var(--border); }
 .update-history-heading h2 { margin: 0; font-size: 16px; }
+.update-history-heading { flex-wrap: wrap; }
+.notification-actions { display: flex; gap: 8px; margin-left: auto; }
 .update-history ol { list-style: none; margin: 0; padding: 0 16px 12px; }
 .update-history li { display: flex; gap: 12px; border-top: 1px solid var(--border); overflow-wrap: anywhere; }
 .update-history time { flex-shrink: 0; color: var(--muted); }

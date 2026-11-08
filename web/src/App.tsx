@@ -1074,7 +1074,8 @@ export function App() {
                 {tab === "Typography" && (
                   <p className="hint">
                     Choose fonts, text sizes and page layout. Use (default)
-                    to leave a setting to the compiler. Print preview shows these changes.
+                    to leave a setting to the compiler. Text and print previews show
+                    typography changes. Page-specific settings affect printed output.
                   </p>
                 )}
                 {tab === "Distribution" && (
@@ -1414,7 +1415,8 @@ export function App() {
 
         </>
       )}
-      <StatusUpdates current={updates.current} history={updates.history} onDismiss={updates.dismiss} />
+      <StatusUpdates current={updates.current} history={updates.history}
+        onDismiss={updates.dismiss} onDismissAll={updates.reset} />
       <footer>
         <a href="https://opensiddur.org/">the Open Siddur Project</a>
         <a href="/privacy">Privacy</a>

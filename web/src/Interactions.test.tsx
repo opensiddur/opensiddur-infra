@@ -81,6 +81,33 @@ afterEach(() => {
 });
 
 describe("autocomplete interactions", () => {
+  it("offers the full catalog for mouse and keyboard selection beyond the first eight results", () => {
+    const options = Array.from({ length: 143 }, (_, index) => ({
+      value: String(index),
+      label: `Synthetic work ${index + 1}`,
+    }));
+    const select = vi.fn();
+    render(<SearchSelect label="Starting text" options={options} onSelect={select} />);
+    const input = screen.getByRole("combobox", { name: "Starting text" });
+    fireEvent.focus(input);
+    expect(screen.getAllByRole("option")).toHaveLength(143);
+    expect(screen.getByRole("status").textContent).toBe("143 matches.");
+    fireEvent.click(screen.getByRole("option", { name: "Synthetic work 143" }));
+    expect(select).toHaveBeenLastCalledWith("142");
+
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "" } });
+    for (let step = 0; step < 8; step++) fireEvent.keyDown(input, { key: "ArrowDown" });
+    expect(screen.getByRole("option", { name: "Synthetic work 9" }).getAttribute("aria-selected")).toBe("true");
+    fireEvent.keyDown(input, { key: "Enter" });
+    expect(select).toHaveBeenLastCalledWith("8");
+
+    fireEvent.focus(input);
+    fireEvent.change(input, { target: { value: "Synthetic work 14" } });
+    expect(screen.getAllByRole("option")).toHaveLength(6);
+    expect(screen.getByRole("option", { name: "Synthetic work 143" })).toBeTruthy();
+  });
+
   it("shows matching options as typing changes and supports keyboard selection and Escape", () => {
     function Example() {
       const [value, setValue] = useState("");

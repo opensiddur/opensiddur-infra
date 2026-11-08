@@ -180,7 +180,7 @@ const fieldHelp: Record<string, string> = {
   even: "Apply this header or footer to even pages.",
   language: "Set the language of this text, for example en for English or he for Hebrew.",
   if: "Show this part of the header or footer only when the placeholder has a value.",
-  normal_size: "Set the normal print size for this font in points.",
+  normal_size: "Set the normal size for this font in points.",
 };
 const fontPriorityHelp = "Fonts are tried in order, starting with the preferred font. An alternative supplies characters the browser cannot display with an earlier font.";
 export function SchemaField(props: Parameters<typeof SchemaFieldInner>[0]) {
@@ -261,8 +261,16 @@ function SchemaFieldInner({
     </button>
   );
   const fontFamilyGroup = path.length === 3 && path[0] === "typography" && path[1] === "fonts";
-  const help = (fontFamilyGroup ? fontPriorityHelp : s.description) || fieldHelp[path.at(-1) || ""] ||
+  const printOnly = path[0] === "typography" && (
+    ["page_header", "page_footer", "line_numbers", "bookmarks", "headings", "instructions"].includes(path[1]) ||
+    (path[1] === "page" && path.length > 2 && path[2] !== "base_font_size") ||
+    (path[1] === "styles" && path[2] === "line_number") ||
+    (path[1] === "table_of_contents" && path[2] === "enabled") ||
+    (path[1] === "parallel" && path[2] === "interleaved" && path[3] === "line_numbers")
+  );
+  const explanation = (fontFamilyGroup ? fontPriorityHelp : s.description) || fieldHelp[path.at(-1) || ""] ||
     (objectSchema ? `Settings that control ${label}.` : `Choose a value for ${label}, or use the default supplied by the builder.`);
+  const help = printOnly ? `${explanation}\nThis setting affects printed output.` : explanation;
   if (objectSchema) {
     const group = { ...objectSchema, ...resolve(schema, root) };
     const properties = path.length === 2 && path[0] === "typography" && path[1] === "fonts" &&
