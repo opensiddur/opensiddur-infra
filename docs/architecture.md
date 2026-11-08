@@ -141,7 +141,9 @@ an HTTP worker instead of starting a Job. It substitutes the synthetic
 retaining typography, conditions and front-matter settings. Their separate
 `previews.lock.json` pins just those fixture files without updating the project
 corpus. The examples contain parallel and unpaired text, notes, title pages,
-headings, lists and fictional credits/bibliography.
+headings, lists and fictional credits/bibliography. Their visible text is the name
+of the typography style that sets it (translated in the Hebrew work), so a
+preview shows which setting changes what.
 
 Build history is owner-authorized and sorted by creation time, newest first.
 New records save the work title at acceptance. Older records resolve it from their
