@@ -2,7 +2,7 @@
 
 A GCP-hosted distribution channel for [opensiddur-processor](https://github.com/opensiddur/opensiddur-processor) and [opensiddur-projects](https://github.com/opensiddur/opensiddur-projects).
 
-Public project browsing and settings editing; verified accounts for compiler previews and full builds. Configure source and translation priorities, annotations, customs and typography. Preview a fixed Psalm 23 demonstration, request a PDF sample, then generate PDF/HTML with advanced TeX/XML exports. Results are private, UUID-addressed, optionally shareable, and expire after 30 days. Explicitly saved presets persist until deleted.
+Public project browsing and settings editing; verified accounts for compiler previews and full builds. Configure source and translation priorities, annotations, customs and typography. Preview your settings on a small synthetic Hebrew/English book whose text names the style that sets it, request a PDF sample, then generate PDF/HTML with advanced TeX/XML exports. Results are private, UUID-addressed, optionally shareable, and expire after 30 days. Explicitly saved presets persist until deleted.
 
 ## Development
 
@@ -37,7 +37,7 @@ Cloud infrastructure is managed with Terraform and deployment scripts. GitHub Ac
 
 `releases.lock.json` pins exact upstream commits. The initial projects repository has no published release, so the initial pair is explicitly labeled a pinned bootstrap snapshot. Later releases must pass compatibility and PDF/HTML checks before promotion.
 
-The demonstration intentionally uses Psalm 23 with a WLC fallback. It cannot illustrate every project's annotations or source coverage, front matter or electronic behavior. Full builds preserve the selected settings without demo overrides.
+The preview substitutes the synthetic `preview-he`/`preview-en` works (pinned in `previews.lock.json`) for the selected work and sources. They exercise representative structures and conditions but cannot illustrate every project's annotations or source coverage. Full builds preserve the selected settings without demo overrides.
 
 All processor settings are editable; this hosted service accepts installed fonts and managed PNG/JPEG logos, not arbitrary filesystem paths, uploaded XML, remote assets or custom TeX.
 
