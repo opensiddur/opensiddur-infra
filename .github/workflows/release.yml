@@ -54,6 +54,8 @@ jobs:
       contents: read
       id-token: write
     uses: ./.github/workflows/deploy-runtime.yml
+    secrets:
+      DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
     with:
       environment: dev
       commit: ${{ needs.resolve.outputs.commit }}
@@ -99,6 +101,9 @@ jobs:
       contents: read
       id-token: write
     uses: ./.github/workflows/deploy-runtime.yml
+    secrets:
+      DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+      PILOT_OPERATORS: ${{ secrets.PILOT_OPERATORS }}
     with:
       environment: prod
       commit: ${{ needs.resolve.outputs.commit }}
@@ -116,6 +121,9 @@ jobs:
       contents: read
       id-token: write
     uses: ./.github/workflows/deploy-runtime.yml
+    secrets:
+      DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+      PILOT_OPERATORS: ${{ secrets.PILOT_OPERATORS }}
     with:
       environment: prod
       commit: ${{ needs.resolve.outputs.commit }}
