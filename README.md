@@ -35,7 +35,7 @@ Cloud infrastructure is managed with Terraform and deployment scripts. GitHub Ac
 
 ## Versioning and limitations
 
-`releases.lock.json` pins exact upstream commits: the latest published releases of opensiddur-processor and opensiddur-projects. New releases must pass compatibility and PDF/HTML checks before promotion.
+`releases.lock.json` pins exact upstream commits: published releases of opensiddur-processor and opensiddur-projects. New releases must pass compatibility and PDF/HTML checks before promotion.
 
 The preview substitutes the synthetic `preview-he`/`preview-en` works (pinned in `previews.lock.json`) for the selected work and sources. They exercise representative structures and conditions but cannot illustrate every project's annotations or source coverage. Full builds preserve the selected settings without demo overrides.
 
