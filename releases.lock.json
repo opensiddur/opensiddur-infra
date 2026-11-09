@@ -1,6 +1,5 @@
 {
-  "processor": "ac30cb96f9b8b69a22ce0b0528fb97b15b0908c7",
-  "projects": "2885a720b6065611145804d2141b34c2471ed7a9",
-  "channel": "bootstrap-pinned-snapshot",
-  "note": "Projects has no published release yet; bootstrap from these exact reviewed commits. Subsequent promotions use compatible releases."
+  "processor": "723b083c9e1f548e3c78a3b375704650093040e6",
+  "projects": "c91943dc9ec9b039447bbed358e982cc529ae621",
+  "channel": "published-releases"
 }
