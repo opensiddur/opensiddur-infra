@@ -304,7 +304,11 @@ Firestore or private Storage, never in a particular API/worker instance.
 
 ## 7. Versions, deployment and operation
 
-`releases.lock.json` pins the processor and projects revisions. Image assembly
+`releases.lock.json` pins the processor and projects revisions production is built
+from: published, full releases only. A development deployment that is not a release
+builds instead from the newest release or prerelease of each, which
+`scripts/upstream.py` finds and `deploy.sh` writes to `.bundle/upstream.json`; the
+image build and the release ID read that file. Image assembly
 creates the catalog, schema support, source index, notices and release manifest.
 A content-derived release ID and immutable image digests identify the runtime;
 Git commit metadata identifies the infrastructure source used to build it.

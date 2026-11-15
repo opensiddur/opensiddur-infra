@@ -15,9 +15,11 @@ for workers and queued jobs.
    editing `pyproject.toml`. In `web`, use
    `npm version X.Y.Z --no-git-tag-version` to update both frontend files.
    Version `0.1.0` is already set in both packages and lockfiles.
-3. Review the processor, corpus, preview fixture and font pack pins. If a
-   scheduled development promotion is ready to ship, review and commit its
-   upstream lock changes in a PR. Release builds use the tagged lockfiles.
+3. Review the processor, corpus, preview fixture and font pack pins. Development
+   runs the newest upstream release or prerelease; once the ones it has been
+   trying are published as full releases, pin those in `releases.lock.json` in
+   a PR: each repository's commit, and its release tag under `tags`. Production accepts full releases only (`scripts/upstream.py check`).
+   Release builds use the tagged lockfiles.
 4. From the candidate checkout run `python3 scripts/release_notes.py vX.Y.Z`
    with Python 3.11 or newer to preview the notes and validate versions.
    Merge the PR after the normal checks pass.

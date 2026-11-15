@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 """Fetch immutable upstream commits; never fetch raw source corpora/importer data."""
 
-import json
 import subprocess
 import sys
 from pathlib import Path
 
-lock = json.loads(Path("releases.lock.json").read_text())
+from upstream import lock_path, read_pins
+
+lock = read_pins()
+print(f"Upstream pins from {lock_path()}: processor {lock['processor']}, "
+      f"projects {lock['projects']} ({lock.get('channel', 'release')})", flush=True)
 processor = Path(sys.argv[1])
 for name, target in (
     ("processor", processor),
