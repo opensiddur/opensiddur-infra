@@ -19,7 +19,9 @@
   (opening a scan inside the HTML book, full screen, beside the text or below it). They show
   in full builds only: the preview's synthetic works have no scanned pages, and a preview runs
   no scripts and loads nothing remote. The opensiddur-projects pin stays at v20261108; JPS
-  1917's links to its scan come with the next book release.
+  1917's links to its scan come with the next book release. The processor pin also brings its
+  fixes to parallel PDF column flow, heading direction and note placement, character
+  highlights in PDF and HTML, and poetry lines in marker mode.
 - Pin the first published releases: opensiddur-processor v0.7.0 and the opensiddur-projects
   book release v20261108. The pins are no longer a bootstrap snapshot.
 - Pin opensiddur-processor with the typography roles for highlights, readings, foreign text,

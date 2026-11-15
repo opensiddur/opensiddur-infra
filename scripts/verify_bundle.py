@@ -80,10 +80,13 @@ settings = {
     "book": {"project": "preview-he", "file_name": "index.xml"},
     "priority": {"transclusion": ["preview-he", "preview-en"]},
     "parallel": {"projects": ["preview-he", "preview-en"]},
-    # Exercise the default notice/logo under the same restricted TeX policy as users.
-    # Links to the scans, and the electronic book's viewer for them.
+    # Links to the scans, and the electronic book's viewer for them. The preview works have
+    # no scanned pages, so this proves the settings and what they add to every book (the
+    # CSS, the TeX margin macros, the viewer's start), not a rendered link.
     "typography": {"markers": {"scan_links": {"placement": "margin"}}},
     "electronic": {"scan_viewer": "vertical"},
+    # No distribution keys: exercise the default notice/logo under the same restricted TeX
+    # policy as users.
 }
 store, outputs = MemoryStore(), Outputs()
 owner = str(uuid.uuid4())
@@ -138,6 +141,7 @@ for name in (
 assert outputs.files["book.pdf"].startswith(b"%PDF")
 assert b"@font-face" in outputs.files["book.html"]
 assert b'"scan_viewer":"vertical"' in outputs.files["book.html"], "Scan viewer setting lost"
+assert b".scan-link-margin" in outputs.files["book.html"], "Scan link placement lost (HTML)"
 preview_settings = settings | {
     "typography": {
         "fonts": {
@@ -173,6 +177,7 @@ assert b"{logo.png}" in outputs.files["book.tex"], (
     "TeX logo must remain portable and sandbox-compatible"
 )
 tex = outputs.files["book.tex"].decode()
+assert r"\OSScanLink@resolve" in tex, "Scan link placement lost (TeX margin macros)"
 # The preview's text is the names of its styles. The English passage the Hebrew book shows
 # when a minyan is selected (preview-he/index.xml) is the only one with 22 words of "body"
 # in a row: the parallel column's English passages are shorter.
