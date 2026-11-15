@@ -10,7 +10,7 @@ from pathlib import Path
 
 from lxml import etree
 from opensiddur.exporter.derived_settings import STATIC_DEFAULTS
-from opensiddur.exporter.settings import validate_settings
+from opensiddur.exporter.settings import SettingsYaml, validate_settings
 from opensiddur.exporter.typography import resolve_font
 from opensiddur_infra.api import create_app
 from opensiddur_infra.builds import Builds
@@ -49,6 +49,14 @@ for project in catalog["projects"]:
     for preset in project["presets"]:
         validate_settings(preset["settings"], project_directory=projects)
 
+# The Builder's settings form is the processor's schema: the pinned processor must carry the
+# links to the scans and the electronic book's scan viewer.
+schema = SettingsYaml.model_json_schema()
+assert "scan_links" in schema["$defs"]["MarkerConfig"]["properties"], "No markers.scan_links"
+assert "scan_viewer" in schema["$defs"]["ElectronicSettings"]["properties"], (
+    "No electronic.scan_viewer"
+)
+
 
 class Outputs:
     def __init__(self):
@@ -72,6 +80,9 @@ settings = {
     "priority": {"transclusion": ["preview-he", "preview-en"]},
     "parallel": {"projects": ["preview-he", "preview-en"]},
     # Exercise the default notice/logo under the same restricted TeX policy as users.
+    # Links to the scans, and the electronic book's viewer for them.
+    "typography": {"markers": {"scan_links": {"placement": "margin"}}},
+    "electronic": {"scan_viewer": "vertical"},
 }
 store, outputs = MemoryStore(), Outputs()
 owner = str(uuid.uuid4())
@@ -125,6 +136,7 @@ for name in (
     assert len(outputs.files.get(name, b"")) > 0, name
 assert outputs.files["book.pdf"].startswith(b"%PDF")
 assert b"@font-face" in outputs.files["book.html"]
+assert b'"scan_viewer":"vertical"' in outputs.files["book.html"], "Scan viewer setting lost"
 preview_settings = settings | {
     "typography": {
         "fonts": {
@@ -133,6 +145,7 @@ preview_settings = settings | {
             "display": [{"name": "DejaVu Sans Mono", "normal_size": 20}],
         },
         "styles": {"heading1": {"font": "display", "size": "large"}},
+        "markers": {"scan_links": {"placement": "margin"}},
     },
 }
 preview_outputs = Outputs()
