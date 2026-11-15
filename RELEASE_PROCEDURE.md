@@ -18,7 +18,7 @@ for workers and queued jobs.
 3. Review the processor, corpus, preview fixture and font pack pins. Development
    runs the newest upstream release or prerelease; once the ones it has been
    trying are published as full releases, pin those in `releases.lock.json` in
-   a PR. Production accepts full releases only (`scripts/upstream.py check`).
+   a PR: each repository's commit, and its release tag under `tags`. Production accepts full releases only (`scripts/upstream.py check`).
    Release builds use the tagged lockfiles.
 4. From the candidate checkout run `python3 scripts/release_notes.py vX.Y.Z`
    with Python 3.11 or newer to preview the notes and validate versions.

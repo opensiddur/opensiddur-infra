@@ -1,3 +1,5 @@
+# Not .bundle/: deploy.sh writes the upstream pins it chose there, and the image build
+# must read the same ones (do not #!include:.gitignore, which lists it).
 .git
 .gitignore
 .venv

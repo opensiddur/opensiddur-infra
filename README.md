@@ -6,7 +6,7 @@ Public project browsing and settings editing; verified accounts for compiler pre
 
 ## Development
 
-Requires Python 3.12, uv, Node 24/npm and Terraform 1.13.5. Authentication and storage integration require GCP or test doubles; no fake production authentication is provided.
+Requires Python 3.12, uv, Node 24/npm and Terraform 1.13.5; deploying also needs the GitHub CLI (`gh`), which looks up upstream releases. Authentication and storage integration require GCP or test doubles; no fake production authentication is provided.
 
 ```bash
 uv sync --frozen --python 3.12

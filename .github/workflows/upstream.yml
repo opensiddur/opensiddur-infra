@@ -11,14 +11,15 @@ permissions:
   id-token: write
 concurrency: upstream-promotion
 jobs:
-  development:
+  compare:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     environment: dev
-    concurrency: deploy-dev
+    outputs:
+      changed: ${{ steps.upstream.outputs.changed }}
     steps:
       - uses: actions/checkout@v4
-        with: { fetch-depth: 0 }
+        with: { persist-credentials: false }
       - uses: google-github-actions/auth@v2
         with:
           workload_identity_provider: ${{ vars.WIF_PROVIDER }}
@@ -28,37 +29,32 @@ jobs:
         id: upstream
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
-          mkdir -p .runtime
-          python3 scripts/upstream.py resolve prerelease > .runtime/upstream-pins.json
-          jq -c --arg commit "$(git rev-parse HEAD)" '{infra_commit: $commit, processor, projects}' \
-            .runtime/upstream-pins.json > .runtime/wanted.json
-          gcloud storage cat gs://opensiddur-builder-dev-tfstate/deployments/development.json 2>/dev/null |
-            jq -c '{infra_commit, processor, projects}' > .runtime/deployed.json || true
-          echo "Wanted:   $(cat .runtime/wanted.json)"
-          echo "Deployed: $(cat .runtime/deployed.json)"
-          if cmp -s .runtime/wanted.json .runtime/deployed.json; then echo 'changed=false' >> "$GITHUB_OUTPUT"; else echo 'changed=true' >> "$GITHUB_OUTPUT"; fi
-      - uses: hashicorp/setup-terraform@v4
-        if: steps.upstream.outputs.changed == 'true'
-        with: { terraform_version: "1.13.5" }
-      - uses: astral-sh/setup-uv@v6
-        if: steps.upstream.outputs.changed == 'true'
-        with: { version: "0.12.21", python-version: "3.12" }
-      - uses: actions/setup-node@v7
-        if: steps.upstream.outputs.changed == 'true'
-        with: { node-version: "24" }
-      - name: Deploy development
-        if: steps.upstream.outputs.changed == 'true'
-        env:
-          DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
-          TF_CLI_ARGS_apply: -auto-approve
-          PRIVACY_OPERATOR: ${{ vars.PRIVACY_OPERATOR }}
-          PRIVACY_CONTACT: ${{ vars.PRIVACY_CONTACT }}
-          PRIVACY_READY: ${{ vars.PRIVACY_READY }}
-          APP_CHECK_SITE_KEY: ${{ vars.APP_CHECK_SITE_KEY }}
-          GOOGLE_AUTH_ENABLED: ${{ vars.GOOGLE_AUTH_ENABLED }}
-          UPSTREAM_PINS: .runtime/upstream-pins.json
-        run: |
-          umask 077
-          printf '%s\n' "$DEPLOY_CONFIG" > .runtime/dev.auto.tfvars
-          unset DEPLOY_CONFIG
-          bash scripts/deploy.sh dev
+          set -o pipefail
+          python3 scripts/upstream.py resolve prerelease |
+            jq -c --arg commit "$GITHUB_SHA" '{infra_commit: $commit, processor, projects}' > wanted.json
+          record=gs://opensiddur-builder-dev-tfstate/deployments/development.json
+          if gcloud storage cat "$record" > deployed-record.json 2> read-error; then
+            jq -c '{infra_commit, processor, projects}' deployed-record.json > deployed.json
+          elif grep -Eqi 'not found|notfound|matched no objects|404' read-error; then
+            echo '{}' > deployed.json  # Never recorded: deploy.
+          else
+            cat read-error >&2
+            exit 1
+          fi
+          echo "Wanted:   $(cat wanted.json)"
+          echo "Deployed: $(cat deployed.json)"
+          if cmp -s wanted.json deployed.json; then echo 'changed=false' >> "$GITHUB_OUTPUT"; else echo 'changed=true' >> "$GITHUB_OUTPUT"; fi
+
+  development:
+    needs: compare
+    if: needs.compare.outputs.changed == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    # deploy.sh finds the newest upstream releases again, and records what it deployed.
+    uses: ./.github/workflows/deploy-runtime.yml
+    secrets:
+      DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+    with:
+      environment: dev
+      commit: ${{ github.sha }}

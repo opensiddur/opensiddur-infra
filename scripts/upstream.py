@@ -24,7 +24,7 @@ REPOSITORIES = ("processor", "projects")
 LOCK = Path("releases.lock.json")
 CHOSEN = Path(".bundle/upstream.json")
 CHANNELS = ("release", "prerelease")
-#: How many of a repository's newest releases ``check`` looks through for a pin.
+#: How many of a repository's releases ``resolve`` looks through for the newest.
 RECENT = 30
 
 
@@ -46,9 +46,18 @@ def repository(name: str) -> str:
 
 
 def releases(name: str) -> list[dict]:
-    """A repository's published releases, newest first (drafts are never included)."""
+    """A repository's recent published releases, newest first (never drafts).
+
+    GitHub lists releases by the date of their commit; a prerelease cut from an older
+    commit would sort below a newer release, so they are sorted by when they were published.
+    """
     listed = json.loads(gh("api", f"repos/{repository(name)}/releases?per_page={RECENT}"))
-    return [r for r in listed if not r.get("draft")]
+    published = [r for r in listed if not r.get("draft")]
+    return sorted(published, key=lambda r: r.get("published_at") or "", reverse=True)
+
+
+def release(name: str, tag: str) -> dict:
+    return json.loads(gh("api", f"repos/{repository(name)}/releases/tags/{tag}"))
 
 
 def commit(name: str, tag: str) -> str:
@@ -72,18 +81,29 @@ def resolve(channel: str) -> dict:
 
 
 def check(lock: Path = LOCK) -> list[str]:
-    """What is wrong with a lock that must pin published, full releases of both."""
+    """What is wrong with a lock that must pin published, full releases of both.
+
+    The lock names each release (``tags``); its commit must be that release's commit.
+    """
     pins = json.loads(lock.read_text())
+    tags = pins.get("tags") or {}
     problems = []
     for name in REPOSITORIES:
-        pin = pins.get(name, "")
-        full = [r["tag_name"] for r in releases(name) if not r.get("prerelease")]
-        if not any(commit(name, tag) == pin for tag in full):
-            problems.append(
-                f"{lock}: opensiddur-{name} {pin or '(missing)'} is not one of its "
-                f"{len(full)} most recent published releases ({', '.join(full) or 'none'}); "
-                "production pins full releases only"
-            )
+        pin, tag = pins.get(name, ""), tags.get(name, "")
+        where = f"{lock}: opensiddur-{name}"
+        if not pin or not tag:
+            problems.append(f"{where} needs both a commit and its release tag (tags.{name})")
+            continue
+        try:
+            found = release(name, tag)
+        except subprocess.CalledProcessError:
+            problems.append(f"{where}: {tag} is not a published release")
+            continue
+        if found.get("draft") or found.get("prerelease"):
+            problems.append(f"{where}: {tag} is a prerelease or draft; production pins "
+                            "full releases only")
+        elif commit(name, tag) != pin:
+            problems.append(f"{where}: {pin} is not the commit of release {tag}")
     return problems
 
 

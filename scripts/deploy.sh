@@ -3,6 +3,7 @@ source "$(dirname "$0")/common.sh" "${1:-}"
 cd "$REPO_ROOT"
 command -v uv >/dev/null
 command -v npm >/dev/null
+command -v gh >/dev/null || { echo 'Install and authenticate the GitHub CLI (gh): deployment looks up upstream releases.' >&2; exit 2; }
 
 VERSION=${BUILDER_VERSION:-}
 PHASE=${DEPLOY_PHASE:-development}

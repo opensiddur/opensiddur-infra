@@ -2,6 +2,7 @@
 
 import json
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -14,16 +15,22 @@ sys.path.insert(0, str(ROOT / "scripts"))
 import release_id  # noqa: E402
 import upstream  # noqa: E402
 
-# Newest first, as GitHub lists them. Commits are the tag name padded to 40 characters.
+# In GitHub's order, by the date of each release's commit: the prerelease was cut from an
+# older commit than v0.7.0 but published after it. Commits are the tag name, hex-encoded.
 RELEASES = {
     "processor": [
-        {"tag_name": "v0.9.0", "draft": True, "prerelease": False},
-        {"tag_name": "v0.8.0-rc.1", "draft": False, "prerelease": True},
-        {"tag_name": "v0.7.0", "draft": False, "prerelease": False},
-        {"tag_name": "v0.6.0", "draft": False, "prerelease": False},
+        {"tag_name": "v0.9.0", "draft": True, "prerelease": False,
+         "published_at": None},
+        {"tag_name": "v0.7.0", "draft": False, "prerelease": False,
+         "published_at": "2026-11-08T22:15:30Z"},
+        {"tag_name": "v0.8.0-rc.1", "draft": False, "prerelease": True,
+         "published_at": "2026-11-15T10:00:00Z"},
+        {"tag_name": "v0.6.0", "draft": False, "prerelease": False,
+         "published_at": "2026-10-25T03:24:22Z"},
     ],
     "projects": [
-        {"tag_name": "v20261108", "draft": False, "prerelease": False},
+        {"tag_name": "v20261108", "draft": False, "prerelease": False,
+         "published_at": "2026-11-08T23:36:49Z"},
     ],
 }
 
@@ -35,6 +42,12 @@ def sha(tag: str) -> str:
 def fake_gh(*args: str) -> str:
     path = args[1]
     name = path.split("/")[2].removeprefix("opensiddur-")
+    if "/releases/tags/" in path:
+        tag = path.rsplit("/", 1)[1]
+        for release in RELEASES[name]:
+            if release["tag_name"] == tag:
+                return json.dumps(release)
+        raise subprocess.CalledProcessError(1, ["gh", *args])
     if "/releases" in path:
         return json.dumps(RELEASES[name])
     return sha(path.rsplit("/", 1)[1])
@@ -76,9 +89,10 @@ class TestCheck(unittest.TestCase):
         self.addCleanup(directory.cleanup)
         self.lock = Path(directory.name) / "releases.lock.json"
 
-    def _check(self, processor_tag: str) -> list[str]:
+    def _check(self, processor_tag: str, processor_commit: str = "") -> list[str]:
         self.lock.write_text(json.dumps(
-            {"processor": sha(processor_tag), "projects": sha("v20261108")}))
+            {"processor": processor_commit or sha(processor_tag), "projects": sha("v20261108"),
+             "tags": {"processor": processor_tag, "projects": "v20261108"}}))
         return upstream.check(self.lock)
 
     def test_an_older_full_release_is_accepted(self):
@@ -88,13 +102,17 @@ class TestCheck(unittest.TestCase):
         problems = self._check("v0.8.0-rc.1")
         self.assertEqual(1, len(problems))
         self.assertIn("opensiddur-processor", problems[0])
+        self.assertIn("prerelease", problems[0])
 
-    def test_a_commit_that_is_no_release_is_refused(self):
-        self.assertEqual(1, len(self._check("some-branch-head")))
+    def test_a_tag_that_is_no_release_is_refused(self):
+        self.assertIn("not a published release", self._check("some-branch")[0])
 
-    def test_a_missing_pin_is_refused(self):
-        self.lock.write_text(json.dumps({"processor": sha("v0.7.0")}))
-        self.assertIn("(missing)", upstream.check(self.lock)[0])
+    def test_a_commit_that_is_not_the_releases_is_refused(self):
+        self.assertIn("not the commit", self._check("v0.7.0", sha("v0.6.0"))[0])
+
+    def test_a_pin_without_its_tag_is_refused(self):
+        self.lock.write_text(json.dumps({"processor": sha("v0.7.0"), "projects": sha("v20261108")}))
+        self.assertEqual(2, len(upstream.check(self.lock)))
 
 
 class TestChoose(unittest.TestCase):
@@ -115,6 +133,7 @@ class TestChoose(unittest.TestCase):
     def _lock(self, processor_tag: str):
         (self.root / "releases.lock.json").write_text(json.dumps(
             {"processor": sha(processor_tag), "projects": sha("v20261108"),
+             "tags": {"processor": processor_tag, "projects": "v20261108"},
              "channel": "release"}))
 
     def _chosen(self) -> dict:

@@ -5,9 +5,11 @@ import subprocess
 import sys
 from pathlib import Path
 
-from upstream import read_pins
+from upstream import lock_path, read_pins
 
 lock = read_pins()
+print(f"Upstream pins from {lock_path()}: processor {lock['processor']}, "
+      f"projects {lock['projects']} ({lock.get('channel', 'release')})", flush=True)
 processor = Path(sys.argv[1])
 for name, target in (
     ("processor", processor),
