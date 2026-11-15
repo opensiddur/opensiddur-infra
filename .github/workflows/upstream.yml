@@ -1,9 +1,13 @@
 name: Keep development current
 # Development runs the newest infra main with the newest release or prerelease of
 # opensiddur-processor and opensiddur-projects. Redeploy it when any of the three has moved
-# since its last deployment (which deploy.sh records). Production is unaffected: it is
+# since its last deployment (which deploy.sh records): on every merge to main, and daily for
+# upstream releases, which this repository cannot see. Production is unaffected: it is
 # deployed only by the release workflow, from releases.lock.json.
 on:
+  push:
+    branches: [main]
+    paths-ignore: ["docs/**", "**.md"]
   schedule: [{ cron: "17 6 * * *" }]
   workflow_dispatch:
 permissions:
