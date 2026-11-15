@@ -15,7 +15,9 @@ bundle = Path(os.environ.get("BUNDLE_DIR", "/opt/bundle"))
 bundle.mkdir(parents=True, exist_ok=True)
 projects = processor / "opensiddur-projects/project"
 ns = {"t": "http://www.tei-c.org/ns/1.0"}
-lock = json.loads(Path("releases.lock.json").read_text())
+from upstream import read_pins
+
+lock = read_pins()
 from release_id import release_identity
 
 release = release_identity()

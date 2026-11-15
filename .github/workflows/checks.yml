@@ -11,6 +11,14 @@ jobs:
         with: { version: "0.12.21" }
       - run: uv sync --frozen --python 3.12
       - run: uv run pytest
+  production-pins:
+    # releases.lock.json is production's: published, full releases only. Development
+    # finds its own (scripts/upstream.py resolve prerelease) when it is deployed.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/upstream.py check releases.lock.json
+        env: { GH_TOKEN: "${{ github.token }}" }
   web:
     runs-on: ubuntu-latest
     steps:

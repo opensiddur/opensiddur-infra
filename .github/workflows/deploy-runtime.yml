@@ -54,6 +54,8 @@ jobs:
       - name: Deploy verified source
         env:
           DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+          # Read-only: finds the upstream releases (scripts/upstream.py).
+          GH_TOKEN: ${{ github.token }}
           TF_CLI_ARGS_apply: -auto-approve
           PRIVACY_OPERATOR: ${{ vars.PRIVACY_OPERATOR }}
           PRIVACY_CONTACT: ${{ vars.PRIVACY_CONTACT }}
