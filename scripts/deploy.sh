@@ -38,6 +38,10 @@ node scripts/frontend-notices.mjs
 mkdir -p .bundle
 jq -nc --arg commit "$COMMIT" --arg version "$VERSION" \
   '{infra_commit: $commit} + (if $version == "" then {} else {version: $version} end)' > .bundle/source.json
+# The upstream commits. A release (and so production) is built from releases.lock.json,
+# which must pin published releases. Any other development deployment follows the newest
+# release or prerelease of each repository, or the pins in $UPSTREAM_PINS when given.
+python3 scripts/upstream.py choose "$ENVIRONMENT" "$VERSION" "${UPSTREAM_PINS:-}"
 RELEASE=$(python3 scripts/release_id.py)
 REGISTRY="$REGION-docker.pkg.dev/$PROJECT_ID/builder"
 record_root="gs://$STATE_BUCKET/deployments/versions/$VERSION"
@@ -130,6 +134,14 @@ curl -fsS --max-time 20 "$site$bundle" | cmp "web/dist$bundle"
 curl -fsS --max-time 20 "$site/runtime-config.json?release=$RELEASE" | cmp web/dist/runtime-config.json
 curl -fsS --max-time 20 "$site/privacy.html?release=$RELEASE" | cmp web/dist/privacy.html
 
+# What development runs, for the daily job that keeps it current (upstream.yml).
+if [[ "$ENVIRONMENT" == dev ]]; then
+  jq --arg commit "$COMMIT" --arg release "$RELEASE" --arg version "$VERSION" \
+    '{infra_commit: $commit, release: $release, version: $version, processor, projects,
+      channel: (.channel // "release"), tags: (.tags // {})}' \
+    .bundle/upstream.json > .runtime/development.json
+  gcloud storage cp .runtime/development.json "gs://$STATE_BUCKET/deployments/development.json"
+fi
 if [[ "$ENVIRONMENT" == prod ]]; then
   enabled=false
   if [[ "$PHASE" == public ]]; then enabled=true; fi

@@ -18,6 +18,10 @@ def release_identity():
             "web/package-lock.json",
         )
     ]
+    # The pins deploy.sh chose for this build: development's differ from production's.
+    chosen = Path(".bundle/upstream.json")
+    if chosen.is_file():
+        files.append(chosen)
     source = Path(".bundle/source.json")
     if source.is_file() and '"version"' in source.read_text():
         files.append(source)
