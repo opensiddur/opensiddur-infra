@@ -125,6 +125,10 @@ for local policy verification. Deployment also runs
 `uv run python scripts/check_retention.py --live "$PROJECT_ID"` before promotion.
 The live audit inventories all Firestore backups and schedules, PITR, project
 buckets, artifact soft deletion/versioning/lifecycles, and default log retention.
+The deployment identity needs `logging.buckets.get` to inspect log retention;
+the dedicated `builderRetentionAuditor` role grants only that configuration read,
+without access to log entries. Apply its Terraform role and deployer binding
+as a foundation change before enabling this gate in an existing environment.
 Unknown backups or buckets fail closed and need a user-data/restore review; the
 protected `-tfstate` bucket is configuration-only and must never contain user data.
 Provider-required audit records are outside this operator-controlled policy.
