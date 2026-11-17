@@ -1,0 +1,62 @@
+name: Dependabot auto-merge
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions: {}
+
+jobs:
+  enable-auto-merge:
+    if: >-
+      github.repository == 'opensiddur/opensiddur-infra' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.base.ref == 'main' &&
+      !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      # This privileged workflow never checks out or executes PR code.
+      # Keep signature/author verification enabled, including for grouped PRs.
+      - name: Fetch verified Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3
+      - name: Check every dependency against the patch allowlist
+        id: policy
+        env:
+          DEPENDENCIES: ${{ steps.metadata.outputs.updated-dependencies-json }}
+        run: |
+          eligible=$(jq -r '
+            type == "array" and length > 0 and all(.[];
+              .dependencyType == "direct:development" and
+              .updateType == "version-update:semver-patch" and
+              .targetBranch == "main" and
+              .maintainerChanges == false and
+              (
+                (.packageEcosystem == "uv" and .directory == "/" and
+                  (.dependencyName | IN("httpx", "pytest", "ruff"))) or
+                (.packageEcosystem == "npm_and_yarn" and .directory == "/web" and
+                  (.dependencyName | IN("@testing-library/react", "@types/react", "@types/react-dom")))
+              )
+            )
+          ' <<< "$DEPENDENCIES" || echo false)
+          if [ "$eligible" = true ]; then
+            echo 'eligible=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'eligible=false' >> "$GITHUB_OUTPUT"
+          fi
+      - name: Enable auto-merge after required checks
+        if: steps.policy.outputs.eligible == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          if [ "$(gh api "repos/$GH_REPO" --jq .allow_auto_merge)" != true ]; then
+            echo 'Repository auto-merge is disabled; see docs/dependency-updates.md.' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          gh pr merge "$PR_URL" --auto --squash --match-head-commit "$HEAD_SHA"
