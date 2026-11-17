@@ -35,3 +35,17 @@ resource "google_storage_bucket_iam_member" "deploy_source" {
   role   = "roles/storage.objectAdmin"
   member = "serviceAccount:${google_service_account.account["deployer"].email}"
 }
+
+# The live retention gate reads log-bucket configuration, not log entries.
+resource "google_project_iam_custom_role" "retention_auditor" {
+  project     = var.project_id
+  role_id     = "builderRetentionAuditor"
+  title       = "Builder retention auditor"
+  description = "Read log-bucket retention settings during deployment."
+  permissions = ["logging.buckets.get"]
+}
+resource "google_project_iam_member" "deploy_retention_auditor" {
+  project = var.project_id
+  role    = google_project_iam_custom_role.retention_auditor.name
+  member  = "serviceAccount:${google_service_account.account["deployer"].email}"
+}

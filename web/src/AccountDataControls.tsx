@@ -174,7 +174,7 @@ export function AccountDataControls({ user, preferences, onDeleting, onDeleted }
         <input autoComplete="off" value={confirmation} onChange={e => setConfirmation(e.target.value)} />
       </label>}
       <button disabled={busy} onClick={cancel}>Cancel</button>
-      <button className="danger" disabled={busy || reauth || confirmation !== "DELETE"} onClick={erase}>Permanently delete my account</button>
+      <button className="danger" disabled={busy || reauth || confirmation !== "DELETE"} onClick={erase}>OK</button>
     </dialog>
   </section>;
 }

@@ -69,6 +69,7 @@ export function App() {
     [notice, setNotice] = useState<Value>(),
     [share, setShare] = useState<Value>();
   const erased = useRef(false);
+  const [accountControlsOpen, setAccountControlsOpen] = useState(() => !!sessionStorage.getItem("account-deletion-receipt") || sessionStorage.getItem("account-delete-pending") === "true");
   const [deleting, setDeleting] = useState(() => !!sessionStorage.getItem("account-deletion-receipt"));
   const updates = useStatusUpdates();
   const setMessage = updates.info, setError = updates.error;
@@ -429,18 +430,6 @@ export function App() {
   const accountPanel = (
     <section className="card" id="account">
       <p className="eyebrow">YOUR ACCOUNT</p>
-      <AccountDataControls user={user} preferences={{ advanced, formats, previewMode, settings, asset, loadedPreset, publishedPreset, tab,
-        stored: Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith("builder-")).map(k => [k, localStorage.getItem(k)])) }}
-        onDeleting={(active) => { setDeleting(active); generation.current++; setPreview(""); }}
-        onDeleted={async () => {
-          erased.current = true;
-          generation.current++; setSettingsState({}); setAsset(null); setPreview("");
-          setPresets([]); setHistory([]); setCurrentBuild(undefined); setAccount(undefined);
-          setAdvanced(false); setFormats(["pdf", "html"]); setPreviewMode("html");
-          setPublishedPreset(""); setLoadedPreset(""); setTab("Sources"); setYaml("");
-          setShare(undefined); setEmail(""); setBuilding(false); setBuildError(""); setPendingFields(new Set());
-          await logout(); setUser(null); setDeleting(false); navigate("/#account");
-        }} />
       {deleting ? null : !user ? (
         <>
           <p>
@@ -515,7 +504,7 @@ export function App() {
             </button>
           )}
           <details>
-            <summary>Saved presets & account controls</summary>
+            <summary>Saved presets</summary>
             {presets.map((p) => (
               <div className="row" key={p.id}>
                 <button
@@ -547,6 +536,26 @@ export function App() {
                 </button>
               </div>
             ))}
+          </details>
+        </>
+      )}
+      <details hidden={!user && !deleting && !erased.current}
+        open={accountControlsOpen || deleting || erased.current}
+        onToggle={event => setAccountControlsOpen(event.currentTarget.open)}>
+        <summary onClick={event => { if (deleting) event.preventDefault(); }}>Account controls</summary>
+        <AccountDataControls user={user} preferences={{ advanced, formats, previewMode, settings, asset, loadedPreset, publishedPreset, tab,
+          stored: Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith("builder-")).map(k => [k, localStorage.getItem(k)])) }}
+          onDeleting={(active) => { setDeleting(active); generation.current++; setPreview(""); }}
+          onDeleted={async () => {
+            erased.current = true;
+            generation.current++; setSettingsState({}); setAsset(null); setPreview("");
+            setPresets([]); setHistory([]); setCurrentBuild(undefined); setAccount(undefined);
+            setAdvanced(false); setFormats(["pdf", "html"]); setPreviewMode("html");
+            setPublishedPreset(""); setLoadedPreset(""); setTab("Sources"); setYaml("");
+            setShare(undefined); setEmail(""); setBuilding(false); setBuildError(""); setPendingFields(new Set());
+            await logout(); setUser(null); setDeleting(false); navigate("/#account");
+          }} />
+        {user && !deleting && !erased.current && (
             <button
               onClick={() =>
                 action(async () => {
@@ -565,9 +574,8 @@ export function App() {
             >
               Withdraw consent
             </button>
-          </details>
-        </>
-      )}
+        )}
+      </details>
     </section>
   );
   function renderLogs(b: Value) {

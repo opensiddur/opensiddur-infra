@@ -119,7 +119,13 @@ it("saves and renames presets without prompts and keeps build history in its own
   expect(accountName.tagName).toBe("P");
   expect(accountLink.previousElementSibling).toBe(accountName);
   fireEvent.click(accountLink);
-  fireEvent.click(screen.getByText("Saved presets & account controls"));
+  const savedPresets = screen.getByText("Saved presets").closest("details")!;
+  const accountControls = screen.getByText("Account controls").closest("details")!;
+  expect(savedPresets.nextElementSibling).toBe(accountControls);
+  expect(within(savedPresets).queryByRole("button", { name: "Withdraw consent", hidden: true })).toBeNull();
+  expect(within(accountControls).getAllByRole("button", { name: "Download all my data", hidden: true })).toHaveLength(2);
+  expect(within(accountControls).getByRole("button", { name: "Delete my account", hidden: true })).toBeTruthy();
+  fireEvent.click(screen.getByText("Saved presets"));
   fireEvent.click(screen.getByRole("button", { name: "Rename" }));
   expect((screen.getByRole("textbox", { name: "Preset name" }) as HTMLInputElement).value).toBe("My siddur");
   fireEvent.change(screen.getByRole("textbox", { name: "Preset name" }), { target: { value: "Renamed siddur" } });
