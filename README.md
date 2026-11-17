@@ -28,6 +28,7 @@ The Python suite uses synthetic project/settings data. Cloud Build additionally 
 - [System architecture and C4 diagrams](docs/architecture.md)
 - [Privacy and account responsibilities](docs/privacy.md)
 - [Software licensing](docs/licensing.md)
+- [Dependabot grouping, auto-merge policy and merge queue setup](docs/dependency-updates.md)
 
 The default configuration keeps public submissions disabled. The development pilot permits configured operator emails; production requires App Check. Publishing the UI does not open registration for compute use.
 

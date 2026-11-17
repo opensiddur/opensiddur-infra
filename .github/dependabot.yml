@@ -3,12 +3,43 @@ updates:
   - package-ecosystem: uv
     directory: /
     schedule: {interval: weekly}
+    groups:
+      # Keep the auto-merge allowlist separate from updates needing review.
+      dev-patches:
+        patterns: [httpx, pytest, ruff]
+        update-types: [patch]
+      other-patches:
+        patterns: ["*"]
+        exclude-patterns: [httpx, pytest, ruff]
+        update-types: [patch]
   - package-ecosystem: npm
     directory: /web
     schedule: {interval: weekly}
+    groups:
+      dev-patches:
+        dependency-type: development
+        patterns: ["@testing-library/react", "@types/react", "@types/react-dom"]
+        update-types: [patch]
+      other-dev-patches:
+        dependency-type: development
+        patterns: ["*"]
+        exclude-patterns: ["@testing-library/react", "@types/react", "@types/react-dom"]
+        update-types: [patch]
+      runtime-patches:
+        dependency-type: production
+        patterns: ["*"]
+        update-types: [patch]
   - package-ecosystem: terraform
     directory: /infrastructure
     schedule: {interval: weekly}
+    groups:
+      provider-patches:
+        patterns: ["*"]
+        update-types: [patch]
   - package-ecosystem: github-actions
     directory: /
     schedule: {interval: weekly}
+    groups:
+      action-patches:
+        patterns: ["*"]
+        update-types: [patch]
