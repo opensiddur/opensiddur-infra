@@ -8,6 +8,9 @@ import {
   isSignInWithEmailLink,
   signInWithEmailLink,
   signOut,
+  reauthenticateWithPopup,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
   type User,
 } from "firebase/auth";
 import {
@@ -53,11 +56,11 @@ export async function api(
     const error = await response
       .json()
       .catch(() => ({ detail: response.statusText }));
-    throw new Error(
+    throw Object.assign(new Error(
       typeof error.detail === "string"
         ? error.detail
         : JSON.stringify(error.detail),
-    );
+    ), { status: response.status });
   }
   return response.json();
 }
@@ -96,11 +99,33 @@ export function needsEmail() {
 }
 export async function finishEmail(email: string) {
   if (!auth) return;
-  await signInWithEmailLink(auth, email, location.href);
+  if (sessionStorage.getItem("account-reauth") && auth.currentUser) {
+    if (auth.currentUser.email !== email) throw new Error("Use the email address of the account being deleted");
+    await reauthenticateWithCredential(auth.currentUser, EmailAuthProvider.credentialWithLink(email, location.href));
+    sessionStorage.removeItem("account-reauth");
+  } else await signInWithEmailLink(auth, email, location.href);
   sessionStorage.removeItem("loginEmail");
-  history.replaceState({}, "", "/");
+  history.replaceState({}, "", sessionStorage.getItem("account-delete-pending") ? "/#account" : "/");
+  window.dispatchEvent(new Event("account-reauthenticated"));
 }
 export async function logout() {
   if (auth) await signOut(auth);
 }
 export type { User };
+
+export async function reauthenticateGoogle() {
+  if (!auth?.currentUser) throw new Error("Sign in to continue");
+  await reauthenticateWithPopup(auth.currentUser, new GoogleAuthProvider());
+}
+export async function emailReauthentication() {
+  if (!auth?.currentUser?.email) throw new Error("Sign in to continue");
+  sessionStorage.setItem("account-reauth", "true");
+  await emailLink(auth.currentUser.email);
+}
+export async function deletionStatus(receipt: string) {
+  const response = await fetch("/api/v1/account/deletion", {
+    headers: { Authorization: "Deletion " + receipt },
+  });
+  if (!response.ok) throw Object.assign(new Error("Deletion status unavailable"), { status: response.status });
+  return response.json();
+}

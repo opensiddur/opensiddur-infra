@@ -117,3 +117,42 @@ uv run python tests/cloud_probe.py --project opensiddur-builder-dev --release RE
 ```
 
 These use the local gcloud operator credentials to enqueue synthetic records, then exercise Cloud Tasks OIDC, API dispatch, the private service/job, Firestore and Storage. They remove their test records/files, preserve truthful global runtime accounting, and never create a real authentication identity or send email. They do **not** replace browser/sign-in acceptance testing, which requires Firebase activation and provider configuration.
+
+### Account export/deletion rollout and retention gate
+
+Run `python3 scripts/check_retention.py` and `terraform -chdir=infrastructure test`
+for local policy verification. Deployment also runs
+`uv run python scripts/check_retention.py --live "$PROJECT_ID"` before promotion.
+The live audit inventories all Firestore backups and schedules, PITR, project
+buckets, artifact soft deletion/versioning/lifecycles, and default log retention.
+Unknown backups or buckets fail closed and need a user-data/restore review; the
+protected `-tfstate` bucket is configuration-only and must never contain user data.
+Provider-required audit records are outside this operator-controlled policy.
+
+Existing installations have a 31-day artifact lifecycle rule. An infrastructure
+operator must apply the reviewed foundation changes for artifact/build buckets and
+the Firestore recovery setting before the runtime deployment gate can pass. The
+runtime deployment deliberately does not apply privileged foundation changes.
+Maintenance migrates old quota/idempotency expiration values down by two/one days,
+once, preserving their original age rather than starting retention over.
+
+The runtime deploy includes `builder-account-data`, using the API image/service
+identity, with an enforced one-hour timeout. Maintenance retries durable data
+operations independently of compiler quotas. Search error logs for
+`Account cleanup requires retry` to investigate stalled cleanup without logging
+account identifiers or provider error payloads. Do not delete unfinished operation
+records: they retain the locators needed to finish erasure.
+
+Before production promotion, run:
+
+```
+uv run python tests/account_data_cloud_probe.py --project opensiddur-builder-dev
+```
+
+This opt-in probe creates two synthetic Firebase users and matching Firestore/files,
+exports one through production adapters, erases it, verifies the other survives,
+and removes its own data/receipts in a finally block. It exercises service logic
+locally against development stores; it does not claim Cloud Run or browser coverage.
+After deploying the new development image, additionally smoke-test API start/status,
+Cloud Scheduler → account-data job dispatch, ZIP download, typed confirmation,
+Google/email reauthentication, and deletion progress across a browser reload.

@@ -32,6 +32,8 @@ fi
 
 uv sync --frozen
 uv run --frozen pytest
+python3 scripts/check_retention.py
+uv run --frozen python scripts/check_retention.py --live "$PROJECT_ID"
 npm --prefix web ci
 npm --prefix web test
 npm --prefix web run build

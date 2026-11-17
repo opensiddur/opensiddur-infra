@@ -75,3 +75,38 @@ class Dispatcher:
                 client.create_task(parent=parent, task=task)
             except AlreadyExists:
                 pass
+
+    def launch_operation(self, identifier):
+        from google.cloud import run_v2
+
+        run_v2.JobsClient().run_job(
+            request={
+                "name": self.config.data_job,
+                "overrides": {
+                    "container_overrides": [
+                        {"env": [{"name": "OPERATION_ID", "value": identifier}]}
+                    ]
+                },
+            }
+        )
+
+    def stop(self, build):
+        """Return true only when the execution cannot publish again."""
+        import time
+
+        if build["type"] != "full":
+            return time.time() > build["started"] + 390
+        from google.cloud import run_v2
+        from google.api_core.exceptions import NotFound
+
+        job = build.get("job") or self.config.job
+        name = job + "/executions/" + build["execution"]
+        client = run_v2.ExecutionsClient()
+        try:
+            execution = client.get_execution(name=name)
+            if execution.completion_time:
+                return True
+            client.cancel_execution(name=name)
+            return False
+        except NotFound:
+            return True

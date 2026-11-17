@@ -16,7 +16,7 @@ class Storage:
         blob.cache_control = "private, no-store"
         if expires:
             blob.metadata = {"expires": str(expires)}
-        blob.upload_from_string(data, content_type=content_type)
+        blob.upload_from_string(data, content_type=content_type, timeout=60, retry=None)
         return {
             "name": name.rsplit("/", 1)[-1],
             "object": name,
@@ -53,4 +53,33 @@ class Storage:
             + name.rsplit("/", 1)[-1]
             + '"',
             response_type=content_type,
+        )
+
+    def list_files(self, prefix):
+        return [
+            {"object": b.name, "size": b.size, "generation": b.generation}
+            for b in self.bucket.list_blobs(prefix=prefix)
+        ]
+
+    def copy_to(self, item, destination):
+        from google.api_core.exceptions import NotFound, PreconditionFailed
+
+        blob = self.bucket.blob(item["object"], generation=item["generation"])
+        try:
+            with blob.open(
+                "rb", chunk_size=1024 * 1024, timeout=60, retry=None
+            ) as source:
+                while chunk := source.read(1024 * 1024):
+                    destination.write(chunk)
+        except (NotFound, PreconditionFailed) as exc:
+            raise FileNotFoundError(item["object"]) from exc
+
+    def export_file(self, name, expires):
+        blob = self.bucket.blob(name)
+        blob.cache_control = "private, no-store"
+        blob.metadata = {"expires": str(expires)}
+        blob.content_type = "application/zip"
+        # ZipFile supports unseekable output. GCS buffers only bounded upload chunks.
+        return blob.open(
+            "wb", chunk_size=8 * 1024 * 1024, ignore_flush=True, timeout=60, retry=None
         )

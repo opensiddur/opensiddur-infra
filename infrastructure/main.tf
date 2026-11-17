@@ -50,14 +50,23 @@ resource "google_storage_bucket" "artifacts" {
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
   force_destroy               = var.purge_data
+  versioning { enabled = false }
   soft_delete_policy { retention_duration_seconds = 0 }
   lifecycle_rule {
     action { type = "Delete" }
     condition {
-      age            = 31
+      age            = 30
       matches_prefix = ["builds/"]
     }
   }
+  lifecycle_rule {
+    action { type = "Delete" }
+    condition {
+      age            = 1
+      matches_prefix = ["exports/"]
+    }
+  }
+
 }
 resource "google_storage_bucket" "builds" {
   name                        = "${var.project_id}-builds"
@@ -65,6 +74,7 @@ resource "google_storage_bucket" "builds" {
   uniform_bucket_level_access = true
   public_access_prevention    = "enforced"
   force_destroy               = var.purge_data
+  versioning { enabled = false }
   soft_delete_policy { retention_duration_seconds = 0 }
   lifecycle_rule {
     action { type = "Delete" }
@@ -72,12 +82,13 @@ resource "google_storage_bucket" "builds" {
   }
 }
 resource "google_firestore_database" "default" {
-  name                    = "(default)"
-  location_id             = var.region
-  type                    = "FIRESTORE_NATIVE"
-  delete_protection_state = var.purge_data ? "DELETE_PROTECTION_DISABLED" : "DELETE_PROTECTION_ENABLED"
-  deletion_policy         = var.purge_data ? "DELETE" : "ABANDON"
-  depends_on              = [google_project_service.api]
+  name                              = "(default)"
+  location_id                       = var.region
+  type                              = "FIRESTORE_NATIVE"
+  point_in_time_recovery_enablement = "POINT_IN_TIME_RECOVERY_DISABLED"
+  delete_protection_state           = var.purge_data ? "DELETE_PROTECTION_DISABLED" : "DELETE_PROTECTION_ENABLED"
+  deletion_policy                   = var.purge_data ? "DELETE" : "ABANDON"
+  depends_on                        = [google_project_service.api]
 }
 resource "google_firestore_index" "owner" {
   collection = "builder_records"

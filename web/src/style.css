@@ -723,3 +723,8 @@ legend { padding: 0 6px; font-weight: 600; }
 .measurement-row { display: flex; align-items: center; gap: 10px; }
 .measurement-row input { flex: 1; min-width: 0; }
 .measurement-row select { width: 85px; flex-shrink: 0; }
+
+.account-data-controls { margin-block: 1.5rem; }
+.account-data-controls dialog { max-width: 36rem; padding: 1.5rem; border-radius: .5rem; }
+.account-data-controls dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.account-data-controls dialog button { margin: .5rem .5rem .5rem 0; }

@@ -11,6 +11,9 @@ def reconcile(config, store, builds, storage, dispatcher):
     records = list({row["id"]: row for row in records}.values())
     for row in records:
         identifier = row["id"]
+        account = store.get(f"account:{row['owner']}")
+        if account and not account.get("enabled"):
+            continue  # Account erasure owns these records until all writers stop.
         if row["state"] == "queued" and not row.get("cancel"):
             if now > row["deadline"]:
                 builds.finish(

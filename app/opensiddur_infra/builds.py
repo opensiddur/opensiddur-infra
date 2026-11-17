@@ -69,16 +69,18 @@ class Builds:
                 raise Rejected("An operation is already outstanding", 409)
             user = values[user_key] or {
                 "kind": "quota",
+                "retention_version": 1,
                 "owner": owner,
                 "counts": {},
                 "seconds": 0,
-                "expires": now + 32 * 86400,
+                "expires": now + 30 * 86400,
             }
             glob = values[global_key] or {
                 "kind": "quota",
+                "retention_version": 1,
                 "counts": {},
                 "seconds": 0,
-                "expires": now + 32 * 86400,
+                "expires": now + 30 * 86400,
             }
             if user["counts"].get(kind, 0) >= count_limit:
                 raise Rejected("Daily operation limit reached")
@@ -131,11 +133,12 @@ class Builds:
                     global_key: glob,
                     idem_key: {
                         "kind": "idempotency",
+                        "retention_version": 1,
                         "owner": owner,
                         "build": identifier,
                         "digest": digest,
                         "key": idem_key,
-                        "expires": now + 31 * 86400,
+                        "expires": now + 30 * 86400,
                     },
                 }
             )
@@ -148,7 +151,13 @@ class Builds:
 
     def get(self, owner, identifier):
         build = self.store.get(f"build:{identifier}")
-        if not build or build["owner"] != owner:
+        account = self.store.get(f"account:{owner}")
+        if (
+            not build
+            or build["owner"] != owner
+            or not account
+            or not account.get("enabled")
+        ):
             raise Rejected("Build not found", 404)
         if build.get("expires", float("inf")) <= self.clock():
             raise Rejected("Build expired", 410)
@@ -160,11 +169,19 @@ class Builds:
         if not build:
             return None
         slot_key = f"slots:{build['group']}"
+        account_key = f"account:{build['owner']}"
         now = self.clock()
 
         def claim(values):
             row = values[key]
-            if not row or row["state"] in TERMINAL or row["cancel"]:
+            account = values[account_key]
+            if (
+                not row
+                or row["state"] in TERMINAL
+                or row["cancel"]
+                or not account
+                or not account.get("enabled")
+            ):
                 return None
             if row.get("started"):
                 return None
@@ -176,7 +193,7 @@ class Builds:
             values[key], values[slot_key] = row, slots
             return row
 
-        return self.store.atomic([key, slot_key], claim)
+        return self.store.atomic([key, slot_key, account_key], claim)
 
     def update(self, identifier, **fields):
         key = f"build:{identifier}"
@@ -204,6 +221,8 @@ class Builds:
             row = values[key]
             if not row or row["state"] in TERMINAL:
                 return
+            if not values[account_key] or not values[account_key].get("enabled"):
+                row["cancel"] = True
             elapsed = (
                 min(row["seconds"], max(0, now - row["started"]))
                 if row.get("started")
@@ -292,7 +311,14 @@ class Builds:
                     "expires": build["expires"],
                 }
 
-        self.store.atomic(keys, share)
+        account_key = f"account:{owner}"
+
+        def guarded_share(values):
+            if not values[account_key] or not values[account_key].get("enabled"):
+                raise Rejected("Account unavailable", 403)
+            return share(values)
+
+        self.store.atomic(keys + [account_key], guarded_share)
         return token
 
     def shared(self, token):
