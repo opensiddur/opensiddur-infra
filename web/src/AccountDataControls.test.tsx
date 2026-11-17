@@ -38,7 +38,7 @@ it("requires exact DELETE, supports cancellation, then clears browser data after
   show();
   await click(screen.getByRole("button", { name: "Delete my account" }));
   let dialog = screen.getByRole("dialog");
-  const confirm = within(dialog).getByRole("button", { name: "Permanently delete my account" });
+  const confirm = within(dialog).getByRole("button", { name: "OK" });
   expect((confirm as HTMLButtonElement).disabled).toBe(true);
   fireEvent.change(within(dialog).getByLabelText("Type DELETE to confirm"), { target: { value: "delete" } });
   expect((confirm as HTMLButtonElement).disabled).toBe(true);
@@ -47,7 +47,7 @@ it("requires exact DELETE, supports cancellation, then clears browser data after
   await click(screen.getByRole("button", { name: "Delete my account" }));
   dialog = screen.getByRole("dialog");
   fireEvent.change(within(dialog).getByLabelText("Type DELETE to confirm"), { target: { value: "DELETE" } });
-  await click(within(dialog).getByRole("button", { name: "Permanently delete my account" }));
+  await click(within(dialog).getByRole("button", { name: "OK" }));
   expect(deleting).toHaveBeenCalledOnce(); expect(deleted).not.toHaveBeenCalled();
   expect(screen.getByText("Removing files")).toBeTruthy();
   const body = vi.mocked(api).mock.calls[0][2];
@@ -66,13 +66,13 @@ it("offers recent sign-in and requires confirmation again", async () => {
   await click(screen.getByRole("button", { name: "Delete my account" }));
   const dialog = screen.getByRole("dialog");
   fireEvent.change(within(dialog).getByLabelText("Type DELETE to confirm"), { target: { value: "DELETE" } });
-  await click(within(dialog).getByRole("button", { name: "Permanently delete my account" }));
+  await click(within(dialog).getByRole("button", { name: "OK" }));
   await click(within(dialog).getByRole("button", { name: "Email me a confirmation sign-in link" }));
   expect(emailReauthentication).toHaveBeenCalledOnce();
   await click(within(dialog).getByRole("button", { name: "Sign in again with Google" }));
   expect(reauthenticateGoogle).toHaveBeenCalledOnce();
   expect((within(dialog).getByLabelText("Type DELETE to confirm") as HTMLInputElement).value).toBe("");
-  expect((within(dialog).getByRole("button", { name: "Permanently delete my account" }) as HTMLButtonElement).disabled).toBe(true);
+  expect((within(dialog).getByRole("button", { name: "OK" }) as HTMLButtonElement).disabled).toBe(true);
 });
 it("resumes receipt polling after reload and retries a temporary status failure", async () => {
   sessionStorage.setItem("account-deletion-receipt", "receipt");
