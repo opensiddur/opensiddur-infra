@@ -14,6 +14,7 @@ uv run pytest
 npm --prefix web ci
 npm --prefix web test
 npm --prefix web run build
+python3 scripts/check_npm_audit.py
 terraform -chdir=infrastructure init -backend=false
 terraform -chdir=infrastructure validate
 ```
