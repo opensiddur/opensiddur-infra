@@ -19,6 +19,7 @@ class Config:
     preview_url: str = os.getenv("PREVIEW_URL", "")
     queue: str = os.getenv("TASK_QUEUE", "builder")
     job: str = os.getenv("BUILD_JOB", "")
+    data_job: str = os.getenv("DATA_JOB", "")
     enabled: bool = os.getenv("SUBMISSIONS_ENABLED", "false").lower() == "true"
     app_check: bool = os.getenv("REQUIRE_APP_CHECK", "true").lower() == "true"
     admins: tuple[str, ...] = tuple(

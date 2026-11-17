@@ -83,6 +83,7 @@ resource "google_cloud_run_v2_service" "api" {
           API_URL             = local.api_url
           PREVIEW_URL         = google_cloud_run_v2_service.preview[var.release_id].uri
           BUILD_JOB           = google_cloud_run_v2_job.build[var.release_id].id
+          DATA_JOB            = google_cloud_run_v2_job.data[0].id
           SUBMISSIONS_ENABLED = tostring(var.submissions_enabled)
           REQUIRE_APP_CHECK   = tostring(var.require_app_check)
           ADMIN_EMAILS        = join(",", var.admin_emails)
@@ -124,6 +125,34 @@ resource "google_cloud_scheduler_job" "maintenance" {
     oidc_token {
       service_account_email = google_service_account.account["dispatcher"].email
       audience              = "https://opensiddur-builder/internal"
+    }
+  }
+}
+
+resource "google_cloud_run_v2_job" "data" {
+  count               = local.runtime ? 1 : 0
+  name                = "builder-account-data"
+  location            = var.region
+  deletion_protection = false
+  template {
+    task_count  = 1
+    parallelism = 1
+    template {
+      service_account = google_service_account.account["api"].email
+      timeout         = "3600s"
+      max_retries     = 0
+      containers {
+        image   = var.api_image != "" ? var.api_image : var.image
+        command = ["python", "-m", "opensiddur_infra.data_operations"]
+        resources { limits = { cpu = "1", memory = "2Gi" } }
+        dynamic "env" {
+          for_each = merge(local.common_env, { BUILD_JOB = google_cloud_run_v2_job.build[var.release_id].id })
+          content {
+            name  = env.key
+            value = env.value
+          }
+        }
+      }
     }
   }
 }
