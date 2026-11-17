@@ -21,6 +21,7 @@ import { SearchSelect } from "./SearchSelect";
 import { LicenseNotice } from "./LicenseNotice";
 import { BuildProgress } from "./BuildProgress";
 import { RequiredMark } from "./RequiredMark";
+import { AccountDataControls } from "./AccountDataControls";
 import { PresetNameForm } from "./PresetNameForm";
 import { SettingsEditContext } from "./SchemaField";
 import { TypographyMetadata, runningHeadIssues } from "./TypographyControls";
@@ -67,6 +68,8 @@ export function App() {
     [asset, setAsset] = useState<string | null>(null),
     [notice, setNotice] = useState<Value>(),
     [share, setShare] = useState<Value>();
+  const erased = useRef(false);
+  const [deleting, setDeleting] = useState(() => !!sessionStorage.getItem("account-deletion-receipt"));
   const updates = useStatusUpdates();
   const setMessage = updates.info, setError = updates.error;
   const [currentBuild, setCurrentBuild] = useState<Value>();
@@ -144,8 +147,8 @@ export function App() {
     else setSettingsState(normalizeSettings(value));
   }
   useEffect(() => {
-    localStorage.setItem("builder-advanced", String(advanced));
-  }, [advanced]);
+    if (!deleting && !erased.current) localStorage.setItem("builder-advanced", String(advanced));
+  }, [advanced, deleting]);
   function changeAdvanced(enabled: boolean) {
     setAdvanced(enabled);
     if (!enabled && tab === "Advanced") setTab("Sources");
@@ -175,6 +178,7 @@ export function App() {
         .catch(fail);
   }, [path]);
   useEffect(() => {
+    if (deleting) return;
     if (user)
       action(async () => {
         setAccount(await api("/account"));
@@ -194,12 +198,12 @@ export function App() {
       setAsset(null);
       updates.reset();
     }
-  }, [user]);
+  }, [user, deleting]);
   useEffect(() => {
     setYaml(stringify(settings));
   }, [settings]);
   useEffect(() => {
-    if (!user) return;
+    if (!user || deleting) return;
     let active = true;
     const timer = setInterval(() => {
       Promise.all([api("/builds"), api("/account")])
@@ -217,7 +221,7 @@ export function App() {
       active = false;
       clearInterval(timer);
     };
-  }, [user]);
+  }, [user, deleting]);
   useEffect(() => {
     return () => { if (preview.startsWith("blob:")) URL.revokeObjectURL(preview); };
   }, [preview]);
@@ -225,7 +229,7 @@ export function App() {
   useEffect(() => {
     const revision = ++generation.current;
     setPreview("");
-    if (!user || !hasConsent || !settings.book || hasPendingSettings) return;
+    if (!user || deleting || !hasConsent || !settings.book || hasPendingSettings) return;
     if (previewMode === "pdf" && account?.allowances?.pdf_samples_remaining === 0) {
       setPreviewStatus("No print samples remaining today. Switch to text preview to continue previewing.");
       return;
@@ -293,7 +297,7 @@ export function App() {
       previewMode === "pdf" ? 1500 : 750,
     );
     return () => clearTimeout(timer);
-  }, [signature, previewMode, previewRevision, user?.uid, hasConsent, hasPendingSettings]);
+  }, [signature, previewMode, previewRevision, user?.uid, hasConsent, hasPendingSettings, deleting]);
   async function prepareSettings(value: Value) {
     if (!value || typeof value !== "object" || Array.isArray(value))
       throw new Error("Settings must be a mapping");
@@ -425,7 +429,19 @@ export function App() {
   const accountPanel = (
     <section className="card" id="account">
       <p className="eyebrow">YOUR ACCOUNT</p>
-      {!user ? (
+      <AccountDataControls user={user} preferences={{ advanced, formats, previewMode, settings, asset, loadedPreset, publishedPreset, tab,
+        stored: Object.fromEntries(Object.keys(localStorage).filter(k => k.startsWith("builder-")).map(k => [k, localStorage.getItem(k)])) }}
+        onDeleting={(active) => { setDeleting(active); generation.current++; setPreview(""); }}
+        onDeleted={async () => {
+          erased.current = true;
+          generation.current++; setSettingsState({}); setAsset(null); setPreview("");
+          setPresets([]); setHistory([]); setCurrentBuild(undefined); setAccount(undefined);
+          setAdvanced(false); setFormats(["pdf", "html"]); setPreviewMode("html");
+          setPublishedPreset(""); setLoadedPreset(""); setTab("Sources"); setYaml("");
+          setShare(undefined); setEmail(""); setBuilding(false); setBuildError(""); setPendingFields(new Set());
+          await logout(); setUser(null); setDeleting(false); navigate("/#account");
+        }} />
+      {deleting ? null : !user ? (
         <>
           <p>
             Browse and edit freely. Sign in to preview, build, or save settings.
@@ -533,18 +549,6 @@ export function App() {
             ))}
             <button
               onClick={() =>
-                action(async () =>
-                  localFile(
-                    "account-export.json",
-                    JSON.stringify(await api("/account/export"), null, 2),
-                  ),
-                )
-              }
-            >
-              Export my data
-            </button>
-            <button
-              onClick={() =>
                 action(async () => {
                   if (
                     confirm(
@@ -560,23 +564,6 @@ export function App() {
               }
             >
               Withdraw consent
-            </button>
-            <button
-              className="danger"
-              onClick={() =>
-                action(async () => {
-                  if (
-                    confirm(
-                      "Delete your account, saved presets and generated files?",
-                    )
-                  ) {
-                    await api("/account", "DELETE");
-                    await logout();
-                  }
-                })
-              }
-            >
-              Delete account
             </button>
           </details>
         </>

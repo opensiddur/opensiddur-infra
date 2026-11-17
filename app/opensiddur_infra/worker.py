@@ -53,10 +53,13 @@ def execute(identifier, config=None, store=None, storage=None):
     store = store or FirestoreStore(config.project)
     storage = storage or Storage(config)
     builds = Builds(store, config.release)
+    from .data_operations import AccountStorage
+
     execution = os.getenv("CLOUD_RUN_EXECUTION", "preview-" + identifier)
     row = builds.claim(identifier, execution)
     if row is None:
         return
+    storage = AccountStorage(storage, store, row["owner"])
     results, artifacts = {}, []
     started = time.monotonic()
 
@@ -425,7 +428,7 @@ def execute(identifier, config=None, store=None, storage=None):
                 results,
                 artifacts,
             )
-            if store.get(f"build:{identifier}").get("cancel"):
+            if (store.get(f"build:{identifier}") or {}).get("cancel", True):
                 storage.delete_prefix(f"builds/{identifier}/")
         except Exception as exc:
             # Keep private diagnostics on failures, but never publish after cancellation,
