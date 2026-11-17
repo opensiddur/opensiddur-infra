@@ -1,5 +1,31 @@
 # Dependency updates
 
+## Temporary web audit exception
+
+CI runs `python3 scripts/check_npm_audit.py`. Production dependencies retain
+`npm audit --omit=dev --audit-level=high` without exceptions. The full audit
+temporarily permits only
+[GHSA-fc5q-39xc-vjpf](https://github.com/advisories/GHSA-fc5q-39xc-vjpf)
+for locked, development-only `picomatch` **4.0.7**, including findings npm
+propagates through Vite, Vitest, tinyglobby, fdir and the React plugin. Other
+high/critical advisories, production exposure, changed picomatch versions,
+invalid reports and audit execution errors still fail.
+
+The advisory was reviewed on November 17, 2026 and blocked Ruff PR #32 despite
+passing builds and tests. At review time npm's latest picomatch was 4.0.7,
+GitHub listed no patched version, and the production audit was clean. The risk
+is regular expression denial of service from attacker-controlled glob patterns;
+this project uses picomatch through development tooling, not its browser runtime.
+This exception accepts that tooling risk temporarily; it does not fix picomatch.
+
+The exception expires at **2026-12-01 00:00 UTC**, when CI fails until it is
+removed or explicitly reviewed. Once a patched release is available, update the
+lockfile, restore `npm --prefix web audit --audit-level=high` in CI and remove
+the wrapper and its exception-specific tests. Do not use `npm audit fix --force`
+to downgrade Vite/Vitest as a substitute for a patched picomatch release.
+
+## Dependabot policy
+
 Dependabot checks all four ecosystems weekly. Patch updates are grouped per
 ecosystem, with separate groups for the auto-merge allowlist. Minor and major
 updates remain separate PRs; security updates retain Dependabot's separate,
