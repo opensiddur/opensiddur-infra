@@ -356,3 +356,37 @@ For operational detail, continue with [deployment.md](deployment.md). For data a
 licensing decisions, see [privacy.md](privacy.md) and [licensing.md](licensing.md).
 [verification.md](verification.md) records what has actually been tested and
 deployed; this guide describes how the system is designed to work.
+
+
+## Account data operations
+
+The account UI starts a durable `operation` record through
+`POST /api/v1/account/export` (browser preferences in the request) or
+`DELETE /api/v1/account` (exact confirmation and a client-generated random receipt).
+Both return 202. Maintenance dispatches pending operations to the dedicated
+`builder-account-data` Cloud Run job; atomic claims and execution leases make
+ambiguous launches and retries safe. The job uses the application image and API
+service identity, without consuming a user's compiler quota.
+
+Export status is owner-authorized at `/api/v1/account/exports/{id}` and its
+`/download` route uses private signed URLs. ZIP output streams to Storage in bounded
+chunks; each source file is temporarily spooled individually so missing files can
+be listed in the manifest without partial ZIP entries. The snapshot boundary is
+preparation start, not a transactional snapshot spanning Firestore and Storage.
+Completed/failed exports expire after 24 hours.
+
+Deletion atomically disables the account before background work. All object writes
+register an owner-scoped activity and check account availability; build claim,
+sharing, consent, preset writes and publication also enforce availability. Cleanup
+cancels builds, waits for execution/write leases, sweeps objects, deletes Firebase
+identities, releases only the account's slot references, and erases every owned
+record. Failures preserve the object/identity locators for another attempt.
+`GET /api/v1/account/deletion` accepts `Authorization: Deletion <receipt>` rather
+than a Firebase token. Only a hash is stored; final status is anonymous and expires
+after 24 hours. No signed URL or receipt is logged.
+
+The account-data job has a one-hour enforced execution timeout; its 65-minute
+lease must remain longer than that timeout. Object uploads use bounded network
+calls, and full-build cancellation checks Cloud Run execution termination. Preview
+termination uses the enforced service timeout plus grace. Do not shorten these
+leases without revisiting concurrent-erasure safety.

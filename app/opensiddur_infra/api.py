@@ -10,6 +10,12 @@ from pydantic import BaseModel, Field, ValidationError
 
 from .builds import LIMITS, TERMINAL, Builds, Rejected
 from .config import Config
+from .data_operations import (
+    AccountStorage,
+    DataOperations,
+    public_operation,
+    reconcile_operations,
+)
 from .dispatch import Dispatcher
 from .identity import Accounts, FirebaseVerifier
 from .processor import Processor
@@ -39,6 +45,9 @@ def create_app(
         if storage is None:
             storage = Storage(config)
         return storage
+
+    def operations():
+        return DataOperations(store, objects(), accounts.verifier, dispatcher)
 
     @app.exception_handler(Rejected)
     async def rejected(request, exc):
@@ -88,7 +97,9 @@ def create_app(
             if claims.get("email") not in config.admins:
                 raise HTTPException(503, "The builder is in a private pilot")
         account = store.get(f"account:{principal.account_id}")
-        if (account.get("consent") or {}).get("version") != config.consent_version:
+        if ((account or {}).get("consent") or {}).get(
+            "version"
+        ) != config.consent_version:
             raise HTTPException(
                 403, "Consent to the current processing notice is required"
             )
@@ -190,7 +201,9 @@ def create_app(
             "release": config.release,
             "submissions_enabled": config.enabled,
             "app_check_required": config.app_check,
-            **{key: source[key] for key in ("version", "infra_commit") if key in source},
+            **{
+                key: source[key] for key in ("version", "infra_commit") if key in source
+            },
         }
 
     @app.get("/api/v1/catalog")
@@ -208,6 +221,8 @@ def create_app(
     @app.get("/api/v1/account")
     def account(principal=Depends(authenticated)):
         row = store.get(f"account:{principal.account_id}")
+        if not row or not row.get("enabled"):
+            raise HTTPException(401, "Account unavailable")
         from datetime import datetime, timezone
 
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -248,6 +263,8 @@ def create_app(
         key = f"account:{principal.account_id}"
 
         def accept(values):
+            if not values[key] or not values[key].get("enabled"):
+                raise HTTPException(403, "Account unavailable")
             values[key]["consent"] = {
                 "version": config.consent_version,
                 "at": time.time(),
@@ -296,6 +313,8 @@ def create_app(
 
         # Persist release-specific destinations before dispatch: a promotion cannot retarget queued work.
         def destinations(values):
+            if not values[key]:
+                return
             values[key].setdefault("job", config.job)
             values[key].setdefault("preview_url", config.preview_url)
 
@@ -422,22 +441,28 @@ def create_app(
             raise HTTPException(429, "Remove unused logos before uploading more")
         identifier = str(uuid.uuid4())
         object_name = f"assets/{identifier}/logo.png"
-        objects().put(object_name, output.getvalue(), "image/png")
         key = f"asset:{identifier}"
-        store.atomic(
-            [key],
-            lambda rows: rows.update(
-                {
-                    key: {
-                        "kind": "asset",
-                        "id": identifier,
-                        "owner": owner,
-                        "object": object_name,
-                        "created": time.time(),
-                    }
-                }
-            ),
-        )
+        account_key = f"account:{owner}"
+
+        def save_asset(rows):
+            if not rows[account_key] or not rows[account_key].get("enabled"):
+                raise HTTPException(403, "Account unavailable")
+            rows[key] = {
+                "kind": "asset",
+                "id": identifier,
+                "owner": owner,
+                "object": object_name,
+                "created": time.time(),
+            }
+
+        try:
+            store.atomic([key, account_key], save_asset)
+            AccountStorage(objects(), store, owner).put(
+                object_name, output.getvalue(), "image/png"
+            )
+        except Exception:
+            objects().delete_prefix(f"assets/{identifier}/")
+            raise
         return {"id": identifier}
 
     @app.get("/api/v1/presets")
@@ -501,12 +526,37 @@ def create_app(
         store.atomic([key], lambda rows: rows.update({key: None}))
         return {"ok": True}
 
-    @app.get("/api/v1/account/export")
-    def export(principal=Depends(authenticated)):
-        return {
-            kind: store.list(kind, principal.account_id)
-            for kind in ("account", "preset", "build", "asset")
-        }
+    class ExportRequest(BaseModel):
+        browser_preferences: dict = Field(default_factory=dict)
+
+    @app.post("/api/v1/account/export", status_code=202)
+    def export(data: ExportRequest, principal=Depends(authenticated)):
+        return operations().start_export(principal.account_id, data.browser_preferences)
+
+    @app.get("/api/v1/account/exports/{identifier}")
+    def export_status(identifier: uuid.UUID, principal=Depends(authenticated)):
+        return public_operation(
+            operations().status(principal.account_id, str(identifier))
+        )
+
+    @app.get("/api/v1/account/exports/{identifier}/download")
+    def export_download(
+        identifier: uuid.UUID, principal=Depends(authenticated), redirect: bool = True
+    ):
+        row = operations().status(principal.account_id, str(identifier))
+        if row["state"] != "succeeded":
+            raise HTTPException(409, "Download is not ready")
+        url = objects().url(
+            f"exports/{identifier}/account-data.zip", row["expires"], "application/zip"
+        )
+        return RedirectResponse(url) if redirect else {"url": url}
+
+    @app.get("/api/v1/account/deletion")
+    def deletion_status(request: Request):
+        token = request.headers.get("Authorization", "")
+        if not token.startswith("Deletion ") or len(token) > 200:
+            raise HTTPException(401, "Deletion receipt required")
+        return operations().receipt(token[9:])
 
     def erase_build(owner, identifier):
         row = builds.cancel(owner, identifier)
@@ -544,28 +594,32 @@ def create_app(
             store.atomic([key], lambda rows, key=key: rows.update({key: None}))
         return {"ok": True}
 
-    @app.delete("/api/v1/account")
-    def delete_account(principal=Depends(authenticated)):
-        if time.time() - principal.authenticated_at > 300:
+    class DeleteRequest(BaseModel):
+        confirmation: str
+        receipt: str = Field(min_length=43, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+
+    @app.delete("/api/v1/account", status_code=202)
+    def delete_account(data: DeleteRequest, request: Request):
+        if data.confirmation != "DELETE":
+            raise HTTPException(422, "Type DELETE to confirm")
+        token = request.headers.get("Authorization", "")
+        if not token.startswith("Bearer "):
+            raise HTTPException(401, "Sign in to continue")
+        try:
+            principal = accounts.authenticate(token[7:], allow_disabled=True)
+        except Exception:
+            raise HTTPException(401, "Authentication failed") from None
+        if not 0 <= time.time() - principal.authenticated_at <= 300:
             raise HTTPException(401, "Sign in again before deleting your account")
-        withdraw(principal)
-        key = f"account:{principal.account_id}"
-        store.atomic(
-            [key],
-            lambda rows: rows[key].update(
-                enabled=False, expires=time.time() + 30 * 86400
-            ),
-        )
-        for row in store.list("identity", principal.account_id):
-            accounts.verifier.delete(row["issuer"], row["subject"])
-            identity_key = f"identity:{row['id']}"
-            store.atomic([identity_key], lambda rows: rows.update({identity_key: None}))
-        return {"ok": True}
+        return operations().start_delete(principal, data.receipt)
 
     @app.post("/internal/dispatch", dependencies=[Depends(internal)])
     def dispatch(data: dict):
         row = store.get(f"build:{data['id']}")
         if not row or row["state"] in TERMINAL or row["cancel"]:
+            return {"ok": True}
+        account = store.get(f"account:{row['owner']}")
+        if not account or not account.get("enabled"):
             return {"ok": True}
         if row.get("dispatch") and time.time() - row["dispatch"] < 120:
             return {"ok": True}
@@ -577,6 +631,7 @@ def create_app(
     def reconcile():
         from .maintenance import reconcile as maintain
 
+        reconcile_operations(config, store, objects(), accounts.verifier, dispatcher)
         return maintain(config, store, builds, objects(), dispatcher)
 
     return app

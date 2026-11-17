@@ -148,3 +148,20 @@ reads left to right, with independent front matter, parallel/unpaired text, note
 credits and a synthetic bibliography. This verifies the demonstration direction
 fix; the earlier reported vowel-placement limitation remains unresolved.
 Production remains foundation-only and public submissions remain disabled.
+
+## Account data download and erasure
+
+The account controls now start durable ZIP exports and typed-confirmation erasure.
+Automated coverage includes owned-record/file/profile export, Unicode and binary
+content, missing objects versus provider failures, account isolation, exact DELETE,
+recent authentication, anonymous receipt access/expiry, cancellation/write races,
+slot isolation, retries, auxiliary-retention migration, and browser preference
+cleanup. Mocked-provider Terraform tests check recovery/lifecycle configuration,
+24-hour export expiry and the enforced timeout required by erasure leases.
+
+The opt-in two-account probe passed against development Firestore, Cloud Storage,
+and Firebase Authentication using the new service locally. Both synthetic accounts,
+files, exports and receipts were removed afterward. This is not a deployed Cloud
+Run/UI smoke test. The read-only live retention audit found the existing development
+artifact bucket's 31-day lifecycle; the code changes it to 30 days, but the reviewed
+foundation configuration must be applied before the deployment gate will pass.

@@ -30,6 +30,22 @@ class MemoryStore:
                     self.data[key] = value
             return copy.deepcopy(result)
 
+    def owned(self, owner):
+        with self.lock:
+            return [
+                (k, copy.deepcopy(v))
+                for k, v in self.data.items()
+                if v.get("owner") == owner
+            ]
+
+    def retention_records(self):
+        with self.lock:
+            return [
+                (k, copy.deepcopy(v))
+                for k, v in self.data.items()
+                if v.get("kind") in {"quota", "idempotency", "receipt", "activity"}
+            ]
+
     def list(self, kind, owner=None, filters=None):
         with self.lock:
             result = [
@@ -55,7 +71,11 @@ class FirestoreStore:
         self.collection = self.db.collection("builder_records")
 
     def ref(self, key):
-        return self.collection.document(document_id(key))
+        return self.collection.document(
+            key.removeprefix("@document:")
+            if key.startswith("@document:")
+            else document_id(key)
+        )
 
     def get(self, key):
         doc = self.ref(key).get()
@@ -89,6 +109,42 @@ class FirestoreStore:
             return result
 
         return apply(self.db.transaction())
+
+    @staticmethod
+    def record_key(doc):
+        row = doc.to_dict()
+        if row["kind"] in {
+            "account",
+            "identity",
+            "build",
+            "asset",
+            "preset",
+            "operation",
+        }:
+            return f"{row['kind']}:{row['id']}"
+        return "@document:" + doc.id
+
+    def owned(self, owner):
+        from google.cloud.firestore_v1.base_query import FieldFilter
+
+        return [
+            (self.record_key(doc), doc.to_dict())
+            for doc in self.collection.where(
+                filter=FieldFilter("owner", "==", owner)
+            ).stream()
+        ]
+
+    def retention_records(self):
+        from google.cloud.firestore_v1.base_query import FieldFilter
+
+        return [
+            ("@document:" + doc.id, doc.to_dict())
+            for doc in self.collection.where(
+                filter=FieldFilter(
+                    "kind", "in", ["quota", "idempotency", "receipt", "activity"]
+                )
+            ).stream()
+        ]
 
     def list(self, kind, owner=None, filters=None):
         from google.cloud.firestore_v1.base_query import FieldFilter
