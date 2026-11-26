@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+- The worker image is built on Ubuntu 26.04 instead of Debian trixie, so PDFs are typeset
+  with TeX Live 2025, as in the processor's CI and development. Under trixie's TeX Live 2024,
+  parallel Hebrew–English columns swapped sides and their line numbers were set over the text
+  (opensiddur-processor#338). Python 3.12 now comes from uv, since Ubuntu's is 3.14.
 - Checks run ruff, the Python linter and formatter, on every push and pull request.
 - Development follows the newest release *or prerelease* of opensiddur-processor and
   opensiddur-projects, and the latest infra `main`: every development deployment that is

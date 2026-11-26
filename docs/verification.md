@@ -165,3 +165,11 @@ files, exports and receipts were removed afterward. This is not a deployed Cloud
 Run/UI smoke test. The read-only live retention audit found the existing development
 artifact bucket's 31-day lifecycle; the code changes it to 30 days, but the reviewed
 foundation configuration must be applied before the deployment gate will pass.
+
+## Ubuntu 26.04 worker image (TeX Live 2025)
+
+The worker image moved from Debian trixie (TeX Live 2024, polyglossia 2.4) to Ubuntu 26.04 (TeX Live 2025, LuaTeX 1.22, polyglossia 2.9), the TeX the processor's CI and development use. Under TeX Live 2024, reledpar's parallel columns were assembled right to left after a Hebrew line, which swapped the Hebrew and English columns and set their line numbers over the text ([opensiddur-processor#338](https://github.com/opensiddur/opensiddur-processor/issues/338)). The processor now builds those boxes with an explicit direction, but typesetting with the same TeX Live as its tests keeps the service from diverging from them again.
+
+Ubuntu's Python is 3.14, outside `requires-python`, so uv installs 3.12 into `/opt/python`, readable by the unprivileged builder. The Ubuntu base image has no `tzdata`, which the processor's calendar needs, so it is installed explicitly. Package license notices now link to the image's own distribution, from `/etc/os-release`.
+
+A local podman build of the `worker` target passed `scripts/verify_bundle.py` (catalog and preset validation, private SQLite, PDF, HTML, TeX, XML, ZIP and publication, as the unprivileged worker). The issue's unpatched `.tex`, typeset in the image, sets the Hebrew column on the left and the line numbers in the outer margins, as the processor's TeX Live 2025 tests expect.
