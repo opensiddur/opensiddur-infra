@@ -53,7 +53,9 @@ for project in catalog["projects"]:
 # The Builder's settings form is the processor's schema: the pinned processor must carry the
 # links to the scans and the electronic book's scan viewer.
 schema = SettingsYaml.model_json_schema()
-assert "scan_links" in schema["$defs"]["MarkerConfig"]["properties"], "No markers.scan_links"
+assert "scan_links" in schema["$defs"]["MarkerConfig"]["properties"], (
+    "No markers.scan_links"
+)
 assert "scan_viewer" in schema["$defs"]["ElectronicSettings"]["properties"], (
     "No electronic.scan_viewer"
 )
@@ -140,8 +142,12 @@ for name in (
     assert len(outputs.files.get(name, b"")) > 0, name
 assert outputs.files["book.pdf"].startswith(b"%PDF")
 assert b"@font-face" in outputs.files["book.html"]
-assert b'"scan_viewer":"vertical"' in outputs.files["book.html"], "Scan viewer setting lost"
-assert b".scan-link-margin" in outputs.files["book.html"], "Scan link placement lost (HTML)"
+assert b'"scan_viewer":"vertical"' in outputs.files["book.html"], (
+    "Scan viewer setting lost"
+)
+assert b".scan-link-margin" in outputs.files["book.html"], (
+    "Scan link placement lost (HTML)"
+)
 preview_settings = settings | {
     "typography": {
         "fonts": {
