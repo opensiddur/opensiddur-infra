@@ -9,10 +9,11 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
+from PIL import Image
+
 from opensiddur_infra.api import create_app
 from opensiddur_infra.config import Config
 from opensiddur_infra.store import MemoryStore
-from PIL import Image
 
 
 class Verifier:

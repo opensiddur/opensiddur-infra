@@ -10,6 +10,8 @@ Requires Python 3.12, uv, Node 24/npm and Terraform 1.13.5; deploying also needs
 
 ```bash
 uv sync --frozen --python 3.12
+uv run ruff check .
+uv run ruff format --check .
 uv run pytest
 npm --prefix web ci
 npm --prefix web test

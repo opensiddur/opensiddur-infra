@@ -76,7 +76,9 @@ def validate_source(root=ROOT):
     all_tf = "\n".join(p.read_text() for p in (root / "infrastructure").glob("*.tf"))
     assert not re.search(r"age\s*=\s*(3[1-9]|[4-9]\d|\d{3,})\b", all_tf)
     buckets = re.findall(r'resource\s+"google_storage_bucket"\s+"([^"]+)"', all_tf)
-    assert sorted(buckets) == ["artifacts", "builds"], "New storage needs an export/erasure and recovery review"
+    assert sorted(buckets) == ["artifacts", "builds"], (
+        "New storage needs an export/erasure and recovery review"
+    )
     assert not re.search(r'resource\s+"[^"]*(?:backup|snapshot)[^"]*"', all_tf), (
         "Recovery mechanisms need erasure-aware design"
     )

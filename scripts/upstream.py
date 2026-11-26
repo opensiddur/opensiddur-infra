@@ -51,7 +51,9 @@ def releases(name: str) -> list[dict]:
     GitHub lists releases by the date of their commit; a prerelease cut from an older
     commit would sort below a newer release, so they are sorted by when they were published.
     """
-    listed = json.loads(gh("api", f"repos/{repository(name)}/releases?per_page={RECENT}"))
+    listed = json.loads(
+        gh("api", f"repos/{repository(name)}/releases?per_page={RECENT}")
+    )
     published = [r for r in listed if not r.get("draft")]
     return sorted(published, key=lambda r: r.get("published_at") or "", reverse=True)
 
@@ -67,12 +69,17 @@ def commit(name: str, tag: str) -> str:
 def resolve(channel: str) -> dict:
     """The newest pins of a channel: full releases only, or prereleases as well."""
     if channel not in CHANNELS:
-        raise SystemExit(f"Unknown channel {channel!r}: use one of {', '.join(CHANNELS)}")
+        raise SystemExit(
+            f"Unknown channel {channel!r}: use one of {', '.join(CHANNELS)}"
+        )
     pins: dict = {}
     tags: dict = {}
     for name in REPOSITORIES:
-        candidates = [r for r in releases(name)
-                      if channel == "prerelease" or not r.get("prerelease")]
+        candidates = [
+            r
+            for r in releases(name)
+            if channel == "prerelease" or not r.get("prerelease")
+        ]
         if not candidates:
             raise SystemExit(f"opensiddur-{name} has no published release")
         tags[name] = candidates[0]["tag_name"]
@@ -92,7 +99,9 @@ def check(lock: Path = LOCK) -> list[str]:
         pin, tag = pins.get(name, ""), tags.get(name, "")
         where = f"{lock}: opensiddur-{name}"
         if not pin or not tag:
-            problems.append(f"{where} needs both a commit and its release tag (tags.{name})")
+            problems.append(
+                f"{where} needs both a commit and its release tag (tags.{name})"
+            )
             continue
         try:
             found = release(name, tag)
@@ -100,8 +109,10 @@ def check(lock: Path = LOCK) -> list[str]:
             problems.append(f"{where}: {tag} is not a published release")
             continue
         if found.get("draft") or found.get("prerelease"):
-            problems.append(f"{where}: {tag} is a prerelease or draft; production pins "
-                            "full releases only")
+            problems.append(
+                f"{where}: {tag} is a prerelease or draft; production pins "
+                "full releases only"
+            )
         elif commit(name, tag) != pin:
             problems.append(f"{where}: {pin} is not the commit of release {tag}")
     return problems

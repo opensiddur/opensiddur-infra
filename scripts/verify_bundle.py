@@ -12,6 +12,7 @@ from lxml import etree
 from opensiddur.exporter.derived_settings import STATIC_DEFAULTS
 from opensiddur.exporter.settings import validate_settings
 from opensiddur.exporter.typography import resolve_font
+
 from opensiddur_infra.api import create_app
 from opensiddur_infra.builds import Builds
 from opensiddur_infra.config import Config

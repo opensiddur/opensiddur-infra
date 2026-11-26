@@ -48,10 +48,16 @@ class FontTests(unittest.TestCase):
             output = Path(directory) / "book.html"
             output.write_text("<html><head></head><body>Text</body></html>")
             notices = Path(directory) / "notices.json"
-            notices.write_text(json.dumps({"components": [
-                {"name": "fonts-synthetic", "text": "Keep <font license>"},
-                {"name": "unrelated", "text": "Unrelated component"},
-            ]}))
+            notices.write_text(
+                json.dumps(
+                    {
+                        "components": [
+                            {"name": "fonts-synthetic", "text": "Keep <font license>"},
+                            {"name": "unrelated", "text": "Unrelated component"},
+                        ]
+                    }
+                )
+            )
             with (
                 patch.dict("sys.modules", modules),
                 patch(

@@ -63,7 +63,8 @@ def reconcile(config, store, builds, storage, dispatcher):
             if row.get("share_hash"):
                 keys.append(f"share:{row['share_hash']}")
             store.atomic(
-                keys, lambda values: values.update({key: None for key in keys})
+                keys,
+                lambda values, keys=keys: values.update({key: None for key in keys}),
             )
             counts["expired"] += 1
     housekeeping = store.get("maintenance:hourly") or {"last": 0}
@@ -81,7 +82,7 @@ def reconcile(config, store, builds, storage, dispatcher):
         if asset["id"] not in references and asset["created"] < now - 86400:
             storage.delete_prefix(f"assets/{asset['id']}/")
             key = f"asset:{asset['id']}"
-            store.atomic([key], lambda values: values.update({key: None}))
+            store.atomic([key], lambda values, key=key: values.update({key: None}))
     for quota in store.list("quota"):
         if quota.get("expires", float("inf")) < now:
             # Quota records carry their deterministic keys for removal.
@@ -93,6 +94,7 @@ def reconcile(config, store, builds, storage, dispatcher):
             # Identity-independent key is retained in the record for deterministic cleanup.
             if entry.get("key"):
                 store.atomic(
-                    [entry["key"]], lambda values: values.update({entry["key"]: None})
+                    [entry["key"]],
+                    lambda values, key=entry["key"]: values.update({key: None}),
                 )
     return counts

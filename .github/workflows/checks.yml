@@ -10,6 +10,8 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with: { version: "0.12.21" }
       - run: uv sync --frozen --python 3.12
+      - run: uv run ruff check --output-format=github .
+      - run: uv run ruff format --check .
       - run: uv run pytest
       - run: python3 scripts/check_retention.py
   production-pins:

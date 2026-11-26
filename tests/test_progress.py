@@ -233,6 +233,7 @@ class RunnerTests(unittest.TestCase):
     def test_pdf_pass_reporting_tracks_actual_subprocess_launches(self):
         import sys
         import types
+
         from opensiddur_infra import runner
 
         fake = types.ModuleType("opensiddur.exporter.refdb")

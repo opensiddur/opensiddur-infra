@@ -3,13 +3,14 @@ import json
 import time
 import unittest
 import zipfile
-from dataclasses import replace
 from contextlib import contextmanager
+from dataclasses import replace
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
 
 from opensiddur_infra.api import create_app
+from opensiddur_infra.builds import Builds, Rejected
 from opensiddur_infra.config import Config
 from opensiddur_infra.data_operations import (
     AccountStorage,
@@ -18,7 +19,6 @@ from opensiddur_infra.data_operations import (
     reconcile_operations,
     writing,
 )
-from opensiddur_infra.builds import Builds, Rejected
 from opensiddur_infra.identity import Accounts
 from opensiddur_infra.store import MemoryStore
 

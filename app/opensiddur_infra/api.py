@@ -2,6 +2,7 @@ import io
 import json
 import time
 import uuid
+from datetime import UTC
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -223,9 +224,9 @@ def create_app(
         row = store.get(f"account:{principal.account_id}")
         if not row or not row.get("enabled"):
             raise HTTPException(401, "Account unavailable")
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        day = datetime.now(UTC).strftime("%Y-%m-%d")
         full = store.get(f"quota:{principal.account_id}:{day}:full") or {
             "counts": {},
             "seconds": 0,
@@ -587,7 +588,7 @@ def create_app(
                 erase_build(principal.account_id, row["id"])
         for row in store.list("preset", principal.account_id):
             k = f"preset:{row['id']}"
-            store.atomic([k], lambda rows: rows.update({k: None}))
+            store.atomic([k], lambda rows, k=k: rows.update({k: None}))
         for row in store.list("asset", principal.account_id):
             objects().delete_prefix(f"assets/{row['id']}/")
             key = f"asset:{row['id']}"

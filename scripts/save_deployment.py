@@ -15,7 +15,9 @@ lines = [
 ]
 lines.extend(
     f"{name} = {json.dumps(value)}"
-    for name, value in zip(("image", "api_image", "release_id"), sys.argv[2:])
+    for name, value in zip(
+        ("image", "api_image", "release_id"), sys.argv[2:], strict=True
+    )
 )
 lines.append("release_images = " + json.dumps(images))
 p.write_text("\n".join(lines) + "\n")
