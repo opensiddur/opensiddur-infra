@@ -15,11 +15,10 @@ for workers and queued jobs.
    editing `pyproject.toml`. In `web`, use
    `npm version X.Y.Z --no-git-tag-version` to update both frontend files.
    Version `0.1.0` is already set in both packages and lockfiles.
-3. Review the processor, corpus, preview fixture and font pack pins. Development
-   runs the newest upstream release or prerelease; once the ones it has been
-   trying are published as full releases, pin those in `releases.lock.json` in
-   a PR: each repository's commit, and its release tag under `tags`. Production accepts full releases only (`scripts/upstream.py check`).
-   Release builds use the tagged lockfiles.
+3. Review the preview fixture and font pack pins. opensiddur-processor and
+   opensiddur-projects are not pinned here: the release builds with their newest
+   full releases, and production takes their later releases daily
+   (`Keep production current`). Release builds use the tagged lockfiles.
 4. From the candidate checkout run `python3 scripts/release_notes.py vX.Y.Z`
    with Python 3.11 or newer to preview the notes and validate versions.
    Merge the PR after the normal checks pass.
@@ -32,10 +31,13 @@ Firebase Hosting and Auth, Cloud Build, Cloud Run and the Terraform state
 backend are ready. Follow [the deployment guide](docs/deployment.md) for
 foundation setup and the separate GitHub environments.
 
-- In GitHub, configure required reviewers on `prod`, restrict deployments
-  to `main`, and disable administrator bypass. Select reviewers who can
-  confirm the production acceptance checks. Keep Workload Identity Federation
-  restricted to `refs/heads/main`.
+- In GitHub, restrict the `prod` environment's deployments to `main`, without
+  required reviewers: running the release workflow is the decision to deploy,
+  and the daily production job must run unattended. Create a `prod-launch`
+  environment with required reviewers who can confirm the production
+  acceptance checks, and disable administrator bypass; a first public launch
+  waits on it between the pilot and opening admissions. Keep Workload Identity
+  Federation restricted to `refs/heads/main`.
 - Configure production email-link sign-in, support and sender details, and
   authorize `opensiddur-builder-prod.web.app` in Firebase Auth. Register the
   production Firebase web app in App Check using a reCAPTCHA Enterprise key
@@ -58,12 +60,13 @@ requires a pilot for `v0.1.0` even if the option is omitted.
 
 The workflow tests and deploys the exact triggering commit to development.
 Once development verifies the API and hosted bundle, it publishes the annotated
-tag and GitHub Release. GitHub then requests production approval. The production
-build uses that same commit and lockfiles, builds and smoke-tests images in its
-own project, and deploys the recorded digests.
+tag and GitHub Release, then deploys to production. The production build uses
+that same commit, lockfiles and upstream releases, builds and smoke-tests images
+in its own project, and deploys the recorded digests.
 
-On the first release, approve the pilot job and wait for it to finish. Before
-approving the separate public job, use a named operator to sign in by email,
+On the first release, the pilot job deploys with admissions closed, and the
+`launch-approval` job then waits on the `prod-launch` reviewers. Before
+approving it, use a named operator to sign in by email,
 give consent, generate HTML and PDF samples, and download a completed book.
 Check that a non-operator cannot submit and that a consented operator request
 without App Check receives HTTP 403. Check the privacy notice and confirm the

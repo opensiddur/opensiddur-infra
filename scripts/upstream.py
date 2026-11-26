@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 """The opensiddur-processor and opensiddur-projects commits a runtime is built from.
 
-Production is built from ``releases.lock.json``, which pins published releases only;
-``check`` refuses anything else. Development follows the newest release *or prerelease*
-of each repository: ``resolve prerelease`` finds those commits each time development is
-deployed, so a prerelease can be tried there without touching production's pins.
+Nothing is pinned in the repository; each deployment finds its commits when it runs:
 
-``deploy.sh`` writes the pins it chose (``choose``) to ``.bundle/upstream.json``; the image build
-(``fetch_sources.py``, ``bundle.py``) and the release ID read that file when it exists,
-and ``releases.lock.json`` otherwise.
+- development (https://opensiddur-builder-dev.web.app/), unless it is a release's
+  development stage, follows the ``main`` branch of each repository;
+- a release, in every stage, and production
+  (https://opensiddur-builder-prod.web.app/) use the newest published, full release of
+  each. A release run resolves them once and passes them to each stage, which checks them.
+
+``deploy.sh`` writes the pins it chose (``choose``) to ``.bundle/upstream.json``; the image
+build (``fetch_sources.py``, ``bundle.py``) and the release ID read that file.
 
     upstream.py choose ENVIRONMENT [VERSION [PINS]]  write the pins a deployment builds from
-    upstream.py resolve release|prerelease         print the newest pins of that channel
-    upstream.py check [LOCK]                       fail unless LOCK pins published releases
+    upstream.py resolve release|main               print the newest pins of that channel
+    upstream.py check PINS                         fail unless PINS are full releases
 """
 
 import json
@@ -21,20 +23,20 @@ import sys
 from pathlib import Path
 
 REPOSITORIES = ("processor", "projects")
-LOCK = Path("releases.lock.json")
 CHOSEN = Path(".bundle/upstream.json")
-CHANNELS = ("release", "prerelease")
+CHANNELS = ("release", "main")
 #: How many of a repository's releases ``resolve`` looks through for the newest.
 RECENT = 30
 
 
-def lock_path() -> Path:
-    """The pins this build uses: the ones deploy.sh chose, or production's."""
-    return CHOSEN if CHOSEN.is_file() else LOCK
-
-
 def read_pins() -> dict:
-    return json.loads(lock_path().read_text())
+    """The pins this build uses: the ones ``choose`` wrote."""
+    if not CHOSEN.is_file():
+        raise SystemExit(
+            f"No upstream pins in {CHOSEN}: run `python3 scripts/upstream.py choose dev` "
+            "(the main branches) or `choose prod` (the newest releases) first"
+        )
+    return json.loads(CHOSEN.read_text())
 
 
 def gh(*args: str) -> str:
@@ -48,8 +50,8 @@ def repository(name: str) -> str:
 def releases(name: str) -> list[dict]:
     """A repository's recent published releases, newest first (never drafts).
 
-    GitHub lists releases by the date of their commit; a prerelease cut from an older
-    commit would sort below a newer release, so they are sorted by when they were published.
+    GitHub lists releases by the date of their commit; a release cut from an older commit
+    would sort below a newer one, so they are sorted by when they were published.
     """
     listed = json.loads(
         gh("api", f"repos/{repository(name)}/releases?per_page={RECENT}")
@@ -62,78 +64,78 @@ def release(name: str, tag: str) -> dict:
     return json.loads(gh("api", f"repos/{repository(name)}/releases/tags/{tag}"))
 
 
-def commit(name: str, tag: str) -> str:
-    return gh("api", f"repos/{repository(name)}/commits/{tag}", "--jq", ".sha")
+def commit(name: str, ref: str) -> str:
+    return gh("api", f"repos/{repository(name)}/commits/{ref}", "--jq", ".sha")
 
 
 def resolve(channel: str) -> dict:
-    """The newest pins of a channel: full releases only, or prereleases as well."""
+    """The newest pins of a channel: the newest full releases, or the main branches."""
     if channel not in CHANNELS:
         raise SystemExit(
             f"Unknown channel {channel!r}: use one of {', '.join(CHANNELS)}"
         )
-    pins: dict = {}
-    tags: dict = {}
+    if channel == "main":
+        pins = {name: commit(name, "main") for name in REPOSITORIES}
+        return pins | {"branch": "main", "channel": channel}
+    pins = {}
+    tags = {}
     for name in REPOSITORIES:
-        candidates = [
-            r
-            for r in releases(name)
-            if channel == "prerelease" or not r.get("prerelease")
-        ]
-        if not candidates:
+        full = [r for r in releases(name) if not r.get("prerelease")]
+        if not full:
             raise SystemExit(f"opensiddur-{name} has no published release")
-        tags[name] = candidates[0]["tag_name"]
+        tags[name] = full[0]["tag_name"]
         pins[name] = commit(name, tags[name])
     return pins | {"tags": tags, "channel": channel}
 
 
-def check(lock: Path = LOCK) -> list[str]:
-    """What is wrong with a lock that must pin published, full releases of both.
+def check(pins: dict, where: str = "pins") -> list[str]:
+    """What is wrong with pins that must be published, full releases of both.
 
-    The lock names each release (``tags``); its commit must be that release's commit.
+    The pins name each release (``tags``); its commit must be that release's commit.
     """
-    pins = json.loads(lock.read_text())
     tags = pins.get("tags") or {}
     problems = []
     for name in REPOSITORIES:
         pin, tag = pins.get(name, ""), tags.get(name, "")
-        where = f"{lock}: opensiddur-{name}"
+        label = f"{where}: opensiddur-{name}"
         if not pin or not tag:
             problems.append(
-                f"{where} needs both a commit and its release tag (tags.{name})"
+                f"{label} needs both a commit and its release tag (tags.{name})"
             )
             continue
         try:
             found = release(name, tag)
         except subprocess.CalledProcessError:
-            problems.append(f"{where}: {tag} is not a published release")
+            problems.append(f"{label}: {tag} is not a published release")
             continue
         if found.get("draft") or found.get("prerelease"):
             problems.append(
-                f"{where}: {tag} is a prerelease or draft; production pins "
-                "full releases only"
+                f"{label}: {tag} is a prerelease or draft; releases and production "
+                "use full releases only"
             )
         elif commit(name, tag) != pin:
-            problems.append(f"{where}: {pin} is not the commit of release {tag}")
+            problems.append(f"{label}: {pin} is not the commit of release {tag}")
     return problems
 
 
 def choose(environment: str, version: str = "", given: str = "") -> dict:
     """Write the pins a deployment builds from to .bundle/upstream.json, and return them.
 
-    A release, and anything deployed to production, uses releases.lock.json, which must
-    pin published releases. Any other development deployment uses the pins it is given
-    (the daily job resolves them first), or else the newest release or prerelease.
+    A release (any deployment with a version) and production use full releases: the
+    pins they are given, which must be full releases, or else the newest. Any other
+    development deployment uses the pins it is given, or else the main branches.
     """
+    supplied = json.loads(Path(given).read_text()) if given else None
     if environment == "prod" or version:
-        problems = check(LOCK)
-        if problems:
-            raise SystemExit("\n".join(problems))
-        pins = json.loads(LOCK.read_text())
-    elif given:
-        pins = json.loads(Path(given).read_text())
+        if supplied is None:
+            pins = resolve("release")
+        else:
+            problems = check(supplied, given)
+            if problems:
+                raise SystemExit("\n".join(problems))
+            pins = supplied
     else:
-        pins = resolve("prerelease")
+        pins = supplied if supplied is not None else resolve("main")
     for name in REPOSITORIES:
         pin = pins.get(name, "")
         if len(pin) != 40 or any(c not in "0123456789abcdef" for c in pin):
@@ -150,8 +152,8 @@ def main(argv: list[str]) -> int:
     if len(argv) == 2 and argv[0] == "resolve":
         print(json.dumps(resolve(argv[1]), indent=2))
         return 0
-    if argv and argv[0] == "check" and len(argv) <= 2:
-        problems = check(Path(argv[1]) if len(argv) == 2 else LOCK)
+    if len(argv) == 2 and argv[0] == "check":
+        problems = check(json.loads(Path(argv[1]).read_text()), argv[1])
         for problem in problems:
             print(problem, file=sys.stderr)
         return 1 if problems else 0

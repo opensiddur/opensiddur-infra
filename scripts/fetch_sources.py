@@ -6,11 +6,11 @@ import sys
 from pathlib import Path
 
 from fetch_previews import fetch_previews
-from upstream import lock_path, read_pins
+from upstream import CHOSEN, read_pins
 
 lock = read_pins()
 print(
-    f"Upstream pins from {lock_path()}: processor {lock['processor']}, "
+    f"Upstream pins from {CHOSEN}: processor {lock['processor']}, "
     f"projects {lock['projects']} ({lock.get('channel', 'release')})",
     flush=True,
 )

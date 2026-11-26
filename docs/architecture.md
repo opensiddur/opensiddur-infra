@@ -304,11 +304,10 @@ Firestore or private Storage, never in a particular API/worker instance.
 
 ## 7. Versions, deployment and operation
 
-`releases.lock.json` pins the processor and projects revisions production is built
-from: published, full releases only. A development deployment that is not a release
-builds instead from the newest release or prerelease of each, which
-`scripts/upstream.py` finds and `deploy.sh` writes to `.bundle/upstream.json`; the
-image build and the release ID read that file. Image assembly
+The processor and projects revisions are found when a deployment runs, by
+`scripts/upstream.py`: development follows their `main` branches, and a release and
+production use their newest full releases. `deploy.sh` writes the commits to
+`.bundle/upstream.json`; the image build and the release ID read that file. Image assembly
 creates the catalog, schema support, source index, notices and release manifest.
 A content-derived release ID and immutable image digests identify the runtime;
 Git commit metadata identifies the infrastructure source used to build it.
@@ -322,9 +321,10 @@ Older runtime versions are retained through the deployment release map.
 Terraform describes the resources. `scripts/deploy.sh` builds and verifies images,
 applies the runtime configuration, publishes Hosting and enables maintenance.
 GitHub Actions uses Workload Identity Federation for deployment, avoiding a
-long-lived Google service-account key. The upstream workflow discovers compatible
-published release pairs, verifies them in development and promotes the reviewed
-lock/image combination. Runtime requests never perform that upgrade themselves.
+long-lived Google service-account key. Scheduled workflows keep development on the
+upstream `main` branches and production on the newest upstream releases, rebuilding
+and smoke-testing images before each deployment. Runtime requests never perform that
+upgrade themselves.
 
 Development and production use separate GCP projects, state and configuration.
 The same architecture is instantiated per environment; production runtime exists
@@ -350,7 +350,7 @@ stopping compute is not the same thing as deleting user data.
 | Compiler execution, pass observation and logs | [worker.py](../app/opensiddur_infra/worker.py), [runner.py](../app/opensiddur_infra/runner.py), [progress.py](../app/opensiddur_infra/progress.py) |
 | Cleanup and recovery | [maintenance.py](../app/opensiddur_infra/maintenance.py) |
 | Resource definitions | [infrastructure/](../infrastructure/) |
-| Image build and upstream pins | [Dockerfile](../Dockerfile), [releases.lock.json](../releases.lock.json), [scripts/](../scripts/) |
+| Image build and upstream pins | [Dockerfile](../Dockerfile), [scripts/upstream.py](../scripts/upstream.py), [scripts/](../scripts/) |
 
 For operational detail, continue with [deployment.md](deployment.md). For data and
 licensing decisions, see [privacy.md](privacy.md) and [licensing.md](licensing.md).

@@ -1,5 +1,6 @@
 """Exercise release validation and source pinning without GitHub or Google Cloud."""
 
+import json
 import os
 import shutil
 import subprocess
@@ -16,7 +17,6 @@ def test_release_notes_require_matching_version_and_include_pins(tmp_path, monke
         "pyproject.toml",
         "uv.lock",
         "CHANGELOG.md",
-        "releases.lock.json",
         "previews.lock.json",
         "fonts.lock.json",
         "web/package.json",
@@ -30,10 +30,26 @@ def test_release_notes_require_matching_version_and_include_pins(tmp_path, monke
     notes = subprocess.check_output(
         ["python3", str(ROOT / "scripts/release_notes.py"), f"v{version}"], text=True
     )
-    assert all(
-        name in notes
-        for name in ("processor", "projects", "font pack", "preview fixtures")
+    assert "- font pack:" in notes and "- preview fixtures:" in notes
+    assert "- processor:" not in notes, (
+        "No upstream pins without the release's pins file"
     )
+    pins = tmp_path / "pins.json"
+    pins.write_text(
+        json.dumps(
+            {
+                "processor": "a" * 40,
+                "projects": "b" * 40,
+                "tags": {"processor": "v0.8.0", "projects": "v20261108"},
+            }
+        )
+    )
+    notes = subprocess.check_output(
+        ["python3", str(ROOT / "scripts/release_notes.py"), f"v{version}", str(pins)],
+        text=True,
+    )
+    assert f"- processor: v0.8.0 `{'a' * 40}`" in notes
+    assert f"- projects: v20261108 `{'b' * 40}`" in notes
     major, minor, patch = map(int, version.split("."))
     for invalid in ("v0.01.0", f"v{major}.{minor}.{patch + 1}", "main"):
         result = subprocess.run(

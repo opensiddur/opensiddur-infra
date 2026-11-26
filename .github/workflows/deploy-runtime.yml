@@ -22,6 +22,10 @@ on:
       first_public_launch:
         type: boolean
         default: false
+      upstream:
+        description: The upstream pins to build from (upstream.py resolve); by default deploy.sh finds them
+        type: string
+        default: ''
 
 jobs:
   deploy:
@@ -68,10 +72,15 @@ jobs:
           BUILDER_VERSION: ${{ inputs.version }}
           DEPLOY_PHASE: ${{ inputs.phase }}
           FIRST_PUBLIC_LAUNCH: ${{ inputs.first_public_launch }}
+          UPSTREAM: ${{ inputs.upstream }}
         run: |
           umask 077
           mkdir -p .runtime
           test -n "$DEPLOY_CONFIG"
           printf '%s\n' "$DEPLOY_CONFIG" > ".runtime/$DEPLOY_ENVIRONMENT.auto.tfvars"
           unset DEPLOY_CONFIG
+          if [[ -n "$UPSTREAM" ]]; then
+            printf '%s\n' "$UPSTREAM" > .runtime/upstream-pins.json
+            export UPSTREAM_PINS=.runtime/upstream-pins.json
+          fi
           bash scripts/deploy.sh "$DEPLOY_ENVIRONMENT"

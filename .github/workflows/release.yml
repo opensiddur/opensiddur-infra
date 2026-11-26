@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       commit: ${{ steps.source.outputs.commit }}
+      pins: ${{ steps.upstream.outputs.pins }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -41,11 +42,22 @@ jobs:
           VERSION: ${{ inputs.version }}
           OPERATION: ${{ inputs.operation }}
         run: bash scripts/resolve_release.sh "$VERSION" "$OPERATION"
-      - name: Require production reviewers
+      - name: Require reviewers for a first public launch
+        if: inputs.first_public_launch || inputs.version == 'v0.1.0'
         run: |
-          curl -fsS --max-time 20 "https://api.github.com/repos/$GITHUB_REPOSITORY/environments/prod" |
+          curl -fsS --max-time 20 "https://api.github.com/repos/$GITHUB_REPOSITORY/environments/prod-launch" |
             jq -e 'any(.protection_rules[]; .type == "required_reviewers" and (.reviewers | length > 0))' >/dev/null ||
-            { echo "Configure required reviewers on the prod environment before releasing." >&2; exit 1; }
+            { echo "Configure required reviewers on the prod-launch environment before a first public launch." >&2; exit 1; }
+      # The newest full releases of opensiddur-processor and opensiddur-projects, once for
+      # every stage, so the development and production stages build the same images.
+      - name: Resolve upstream releases
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -o pipefail
+          python3 scripts/upstream.py resolve release | jq -c . > "$RUNNER_TEMP/pins.json"
+          printf 'pins=%s\n' "$(cat "$RUNNER_TEMP/pins.json")" >> "$GITHUB_OUTPUT"
 
   development:
     needs: resolve
@@ -59,6 +71,7 @@ jobs:
     with:
       environment: dev
       commit: ${{ needs.resolve.outputs.commit }}
+      upstream: ${{ needs.resolve.outputs.pins }}
       version: ${{ inputs.version }}
 
   publish:
@@ -77,9 +90,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
           COMMIT: ${{ needs.resolve.outputs.commit }}
+          PINS: ${{ needs.resolve.outputs.pins }}
         run: |
           notes="$RUNNER_TEMP/builder-release-notes.md"
-          python3 scripts/release_notes.py "$VERSION" > "$notes"
+          printf '%s\n' "$PINS" > "$RUNNER_TEMP/pins.json"
+          python3 scripts/release_notes.py "$VERSION" "$RUNNER_TEMP/pins.json" > "$notes"
           ref="refs/tags/$VERSION"
           if git show-ref --verify --quiet "$ref"; then
             test "$(git cat-file -t "$ref")" = tag
@@ -107,15 +122,27 @@ jobs:
     with:
       environment: prod
       commit: ${{ needs.resolve.outputs.commit }}
+      upstream: ${{ needs.resolve.outputs.pins }}
       version: ${{ inputs.version }}
       phase: pilot
 
+  # A first public launch pauses here, after the operator pilot, for the checks in
+  # RELEASE_PROCEDURE.md. The prod-launch environment's required reviewers are the pause;
+  # prod itself has none, so a regular release and the daily production job run unattended.
+  launch-approval:
+    needs: production-pilot
+    if: ${{ !cancelled() && needs.production-pilot.result == 'success' }}
+    runs-on: ubuntu-latest
+    environment: prod-launch
+    steps:
+      - run: echo "Pilot checks approved; opening production to the public."
+
   production:
-    needs: [resolve, publish, production-pilot]
+    needs: [resolve, publish, production-pilot, launch-approval]
     if: >-
       !cancelled() && needs.resolve.result == 'success' &&
       (needs.publish.result == 'success' || (inputs.operation == 'retry-production' && needs.publish.result == 'skipped')) &&
-      (needs.production-pilot.result == 'success' ||
+      ((needs.production-pilot.result == 'success' && needs.launch-approval.result == 'success') ||
       (!inputs.first_public_launch && inputs.version != 'v0.1.0' && needs.production-pilot.result == 'skipped'))
     permissions:
       contents: read
@@ -127,6 +154,7 @@ jobs:
     with:
       environment: prod
       commit: ${{ needs.resolve.outputs.commit }}
+      upstream: ${{ needs.resolve.outputs.pins }}
       version: ${{ inputs.version }}
       phase: public
       first_public_launch: ${{ inputs.first_public_launch || inputs.version == 'v0.1.0' }}

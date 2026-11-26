@@ -17,12 +17,13 @@
   parallel Hebrew–English columns swapped sides and their line numbers were set over the text
   (opensiddur-processor#338). Python 3.12 now comes from uv, since Ubuntu's is 3.14.
 - Checks run ruff, the Python linter and formatter, on every push and pull request.
-- Development follows the newest release *or prerelease* of opensiddur-processor and
-  opensiddur-projects, and the latest infra `main`: every development deployment that is
-  not a release finds them, and development is redeployed on every merge to `main` and daily
-  when any has moved.
-  Production still builds only from `releases.lock.json`, which a check (on every pull
-  request, and before a release deploys) now requires to pin full releases, named by tag.
+- Development follows the `main` branches of infra, opensiddur-processor and
+  opensiddur-projects, redeployed on every merge to `main` and daily when any has moved.
+  Production runs the latest Builder release with the newest full releases of
+  opensiddur-processor and opensiddur-projects, found when it deploys; a new daily job
+  redeploys it when either publishes a newer release. `releases.lock.json` is gone.
+  Production deployments no longer wait for reviewers; only a first public launch does,
+  on the new `prod-launch` environment, between the pilot and opening admissions.
 - Pin the first published releases: opensiddur-processor v0.7.0 and the opensiddur-projects
   book release v20261108. The pins are no longer a bootstrap snapshot.
 - Pin opensiddur-processor with the typography roles for highlights, readings, foreign text,

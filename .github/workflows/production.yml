@@ -1,0 +1,85 @@
+name: Keep production current
+# Production (https://opensiddur-builder-prod.web.app/) runs the latest Builder release with
+# the newest full releases of opensiddur-processor and opensiddur-projects. A Builder release
+# deploys itself (release.yml); this job redeploys that release when either upstream has
+# published a newer release since production's last deployment (which deploy.sh records).
+# It leaves alone a release that has not finished its own launch to the public.
+on:
+  schedule: [{ cron: "47 6 * * *" }]
+  workflow_dispatch:
+permissions:
+  contents: read
+  id-token: write
+concurrency: production-promotion
+jobs:
+  compare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: prod
+    outputs:
+      changed: ${{ steps.upstream.outputs.changed }}
+      version: ${{ steps.upstream.outputs.version }}
+      commit: ${{ steps.upstream.outputs.commit }}
+      pins: ${{ steps.upstream.outputs.pins }}
+    steps:
+      - uses: actions/checkout@v7
+        with: { persist-credentials: false }
+      - uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SERVICE_ACCOUNT }}
+      - uses: google-github-actions/setup-gcloud@v3
+      - name: Compare production with the newest releases
+        id: upstream
+        env: { GH_TOKEN: "${{ github.token }}" }
+        run: |
+          set -o pipefail
+          unchanged() { echo "$1"; echo 'changed=false' >> "$GITHUB_OUTPUT"; exit 0; }
+          read_record() {  # Prints the object, nothing when it does not exist; fails otherwise.
+            if gcloud storage cat "$1" 2> read-error; then return 0; fi
+            grep -Eqi 'not found|notfound|matched no objects|404' read-error && return 0
+            cat read-error >&2
+            return 1
+          }
+          bucket=gs://opensiddur-builder-prod-tfstate/deployments
+          version=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null) ||
+            unchanged "No published Builder release: production waits for the first (release.yml)."
+          launched=$(read_record "$bucket/versions/$version/public.json")
+          [[ -n "$launched" ]] ||
+            unchanged "Builder $version has not been launched to the public; release.yml deploys it."
+          commit=$(gh api "repos/$GITHUB_REPOSITORY/commits/$version" --jq .sha)
+          python3 scripts/upstream.py resolve release | jq -c . > pins.json
+          jq -c --arg version "$version" '{version: $version, processor, projects}' pins.json > wanted.json
+          read_record "$bucket/production.json" > deployed-record.json
+          if [[ -s deployed-record.json ]]; then
+            jq -c '{version, processor, projects}' deployed-record.json > deployed.json
+          else
+            echo '{}' > deployed.json  # Never recorded: deploy.
+          fi
+          echo "Wanted:   $(cat wanted.json)"
+          echo "Deployed: $(cat deployed.json)"
+          cmp -s wanted.json deployed.json && unchanged "Production is current."
+          {
+            echo 'changed=true'
+            echo "version=$version"
+            echo "commit=$commit"
+            echo "pins=$(cat pins.json)"
+          } >> "$GITHUB_OUTPUT"
+
+  production:
+    needs: compare
+    if: needs.compare.outputs.changed == 'true'
+    permissions:
+      contents: read
+      id-token: write
+    # The release's own deploy script, at its tag, with the newest upstream releases.
+    uses: ./.github/workflows/deploy-runtime.yml
+    secrets:
+      DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
+      PILOT_OPERATORS: ${{ secrets.PILOT_OPERATORS }}
+    with:
+      environment: prod
+      commit: ${{ needs.compare.outputs.commit }}
+      version: ${{ needs.compare.outputs.version }}
+      phase: public
+      upstream: ${{ needs.compare.outputs.pins }}
