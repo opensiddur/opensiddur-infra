@@ -3,7 +3,9 @@ name: Keep production current
 # the newest full releases of opensiddur-processor and opensiddur-projects. A Builder release
 # deploys itself (release.yml); this job redeploys that release when either upstream has
 # published a newer release since production's last deployment (which deploy.sh records).
-# It leaves alone a release that has not finished its own launch to the public.
+# It leaves alone a release that has not finished its own launch to the public, and does
+# nothing while deployments/production-paused exists in the production state bucket (see
+# RELEASE_PROCEDURE.md, "Retry or roll back", and docs/deployment.md).
 on:
   schedule: [{ cron: "47 6 * * *" }]
   workflow_dispatch:
@@ -42,7 +44,15 @@ jobs:
             return 1
           }
           bucket=gs://opensiddur-builder-prod-tfstate/deployments
-          version=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName 2>/dev/null) ||
+          if gcloud storage ls "$bucket/production-paused" > /dev/null 2> read-error; then
+            unchanged "Production updates are paused: $(gcloud storage cat "$bucket/production-paused")"
+          elif ! grep -Eqi 'not found|notfound|matched no objects|404' read-error; then
+            cat read-error >&2
+            exit 1
+          fi
+          version=$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-drafts --exclude-pre-releases \
+            --limit 1 --json tagName --jq '.[0].tagName // empty')
+          [[ -n "$version" ]] ||
             unchanged "No published Builder release: production waits for the first (release.yml)."
           launched=$(read_record "$bucket/versions/$version/public.json")
           [[ -n "$launched" ]] ||

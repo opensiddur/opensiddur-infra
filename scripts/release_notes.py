@@ -57,7 +57,7 @@ def notes(tag, upstream=None):
         for name in ("processor", "projects", "preview fixtures", "font pack")
         if name in revisions
     )
-    return f"{match[1].strip()}\n\n## Pinned inputs\n\n{pins}"
+    return f"{match[1].strip()}\n\n## Inputs at publication\n\n{pins}"
 
 
 if __name__ == "__main__":

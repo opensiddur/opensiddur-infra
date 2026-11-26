@@ -60,7 +60,7 @@ Get the provider and deployment identity with `terraform output`. Run the `Deplo
 
 The UI polls build state every 10 seconds. Scheduler reconciles queued/stuck jobs and expiration each minute. Use Cloud Run execution status and the build UUID for diagnostics. Compiler logs remain in temporary local directories; they are not sent to Cloud Logging. Share-token request URLs are excluded from stored Cloud Run request logs. Default application logs have 30-day retention; Google-required audit logs follow provider policy.
 
-Pause new work by setting `submissions_enabled=false` and clearing `admin_emails`, then redeploy. For an immediate queue stop:
+Pause new work by setting `submissions_enabled=false` and clearing `admin_emails`, then redeploy. In production, first stop the daily upstream updates, which reopen admissions when they redeploy: write a reason to `gs://opensiddur-builder-prod-tfstate/deployments/production-paused` (see the release procedure's rollback section), and delete it to resume. For an immediate queue stop:
 
 ```bash
 gcloud tasks queues pause builder --location=us-central1 --project=opensiddur-builder-prod

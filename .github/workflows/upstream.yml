@@ -55,7 +55,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    # deploy.sh finds the newest upstream releases again, and records what it deployed.
+    # deploy.sh finds the main heads again, and records what it deployed.
     uses: ./.github/workflows/deploy-runtime.yml
     secrets:
       DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}

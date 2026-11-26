@@ -21,7 +21,9 @@ if [[ "$ENVIRONMENT" == prod ]]; then
   : "${APP_CHECK_SITE_KEY:?Configure production App Check}"
   [[ "${PRIVACY_READY:-false}" == true ]] || { echo 'Complete the privacy launch review and set PRIVACY_READY=true.' >&2; exit 2; }
   admission_args+=(-var=require_app_check=true)
-  if [[ "$PHASE" == pilot || "$VERSION" == v0.1.0 || "${FIRST_PUBLIC_LAUNCH:-false}" == true ]]; then
+  # The release workflow sets FIRST_PUBLIC_LAUNCH for v0.1.0 and any other first launch; a
+  # later deployment of the same version (production.yml's upstream updates) is not one.
+  if [[ "$PHASE" == pilot || "${FIRST_PUBLIC_LAUNCH:-false}" == true ]]; then
     operators=$(jq -ce 'select(type == "array" and length > 0 and all(.[]; type == "string" and test("^[^@[:space:]]+@[^@[:space:]]+$")))' <<< "${PILOT_OPERATORS:-[]}")
     admission_args+=("-var=admin_emails=$operators")
   fi
@@ -51,12 +53,30 @@ REGISTRY="$REGION-docker.pkg.dev/$PROJECT_ID/builder"
 record_root="gs://$STATE_BUCKET/deployments/versions/$VERSION"
 prepared=.runtime/prepared-release.json
 pilot_hosting_version=
+deployed_record="gs://$STATE_BUCKET/deployments/production.json"
+if [[ "$ENVIRONMENT" == prod && "$PHASE" == pilot ]]; then
+  # A pilot closes public admissions: never for a version already open to the public.
+  if gcloud storage ls "$record_root/public.json" >/dev/null 2>&1; then
+    echo "$VERSION is already public; a pilot would close admissions. Retry without one." >&2
+    exit 2
+  fi
+fi
+if [[ "$ENVIRONMENT" == prod && "$PHASE" == public && "${FIRST_PUBLIC_LAUNCH:-false}" != true ]]; then
+  # Never put an older Builder release back over a newer one (a daily upstream update of
+  # the previous release queued behind a new release's deployment). Rollbacks are manual.
+  deployed_version=$(gcloud storage cat "$deployed_record" 2>/dev/null | jq -r '.version // empty' || true)
+  if [[ -n "$deployed_version" && "$deployed_version" != "$VERSION" &&
+        $(printf '%s\n' "$deployed_version" "$VERSION" | sort -V | tail -1) == "$deployed_version" ]]; then
+    echo "Production runs $deployed_version, newer than $VERSION; not deploying." >&2
+    exit 2
+  fi
+fi
 if [[ "$ENVIRONMENT" == prod && "$PHASE" == public ]]; then
   if [[ "$VERSION" != v0.1.0 ]]; then
     gcloud storage cat "gs://$STATE_BUCKET/deployments/versions/v0.1.0/public.json" |
       jq -e '.version == "v0.1.0" and .submissions_enabled == true' >/dev/null
   fi
-  if [[ "$VERSION" == v0.1.0 || "${FIRST_PUBLIC_LAUNCH:-false}" == true ]]; then
+  if [[ "${FIRST_PUBLIC_LAUNCH:-false}" == true ]]; then
     pilot_hosting_version=$(gcloud storage cat "$record_root/pilot.json" |
       jq -er --arg commit "$COMMIT" --arg release "$RELEASE" \
         'select(.infra_commit == $commit and .release == $release and .submissions_enabled == false) | .hosting_version')
@@ -161,7 +181,8 @@ if [[ "$ENVIRONMENT" == prod ]]; then
     if ! terraform -chdir=infrastructure apply -target=google_cloud_run_v2_service.api \
       "${runtime_args[@]}" -var=require_app_check=true -var=submissions_enabled=true ||
       ! check_health true ||
-      ! gcloud storage cp .runtime/deployment.json "$record_root/public.json"; then
+      ! gcloud storage cp .runtime/deployment.json "$record_root/public.json" ||
+      ! gcloud storage cp .runtime/deployment.json "$record_root/public/$RELEASE.json"; then
       terraform -chdir=infrastructure apply -target=google_cloud_run_v2_service.api \
         "${runtime_args[@]}" "${admission_args[@]}"
       exit 1

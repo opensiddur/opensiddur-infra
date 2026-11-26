@@ -85,14 +85,28 @@ admission policy verified at deployment.
 If development fails, fix the issue and rerun the release. If tag creation
 succeeded but publication failed, rerun the failed publish job at the same
 commit. Never move a published tag. If production fails after publication,
-run **Release Builder** from `main` with operation `retry-production` and
-the published tag. This uses its original commit and reuses any recorded
-smoke-tested production images. Retrying `v0.1.0` runs the pilot checks and
-approval sequence again, which temporarily closes public admissions.
+re-run the failed jobs of the original run: that keeps the upstream releases it
+resolved and reuses any smoke-tested production images recorded for them. Running
+**Release Builder** with operation `retry-production` and the published tag also
+works, but it resolves the newest upstream releases again, so after a new
+upstream release it builds and deploys a combination development never ran.
+A pilot is refused for a version that is already public, since it would close
+admissions; a first launch whose public step failed can retry with its pilot.
 
-To roll back, read the previous tag’s `public.json` from the production state
-bucket and review a Terraform plan using its `worker_image`, `api_image` and
-`release` as `image`, `api_image` and `release_id`. Load the complete release
+Before rolling back or pausing production, stop its daily upstream updates, which
+would otherwise redeploy the latest release with admissions open:
+
+```bash
+echo "Rolled back to vX.Y.Z: reason" |
+  gcloud storage cp - gs://opensiddur-builder-prod-tfstate/deployments/production-paused
+```
+
+Delete that object to resume them. To roll back a Builder release, read the
+previous tag’s `public.json` from the production state bucket; to roll back an
+upstream update of the same release, read the earlier record under
+`versions/<tag>/public/<runtime ID>.json`. Review a Terraform plan using its
+`worker_image`, `api_image` and `release` as `image`, `api_image` and
+`release_id`. Load the complete release
 history with `scripts/deployment_history.py load` before planning. Use the
 targets from `scripts/runtime-targets.sh` and keep App Check enabled. Set
 `submissions_enabled=false` until the rollback is verified. Apply the plan,
