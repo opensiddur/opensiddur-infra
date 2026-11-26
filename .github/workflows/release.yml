@@ -12,7 +12,7 @@ on:
         default: release
         options: [release, retry-production]
       first_public_launch:
-        description: Stage an operator pilot before requesting public launch approval
+        description: Stage an operator pilot before opening production to the public
         type: boolean
         default: false
 
@@ -42,12 +42,6 @@ jobs:
           VERSION: ${{ inputs.version }}
           OPERATION: ${{ inputs.operation }}
         run: bash scripts/resolve_release.sh "$VERSION" "$OPERATION"
-      - name: Require reviewers for a first public launch
-        if: inputs.first_public_launch || inputs.version == 'v0.1.0'
-        run: |
-          curl -fsS --max-time 20 "https://api.github.com/repos/$GITHUB_REPOSITORY/environments/prod-launch" |
-            jq -e 'any(.protection_rules[]; .type == "required_reviewers" and (.reviewers | length > 0))' >/dev/null ||
-            { echo "Configure required reviewers on the prod-launch environment before a first public launch." >&2; exit 1; }
       # The newest full releases of opensiddur-processor and opensiddur-projects, once for
       # every stage, so the development and production stages build the same images.
       - name: Resolve upstream releases
@@ -126,23 +120,12 @@ jobs:
       version: ${{ inputs.version }}
       phase: pilot
 
-  # A first public launch pauses here, after the operator pilot, for the checks in
-  # RELEASE_PROCEDURE.md. The prod-launch environment's required reviewers are the pause;
-  # prod itself has none, so a regular release and the daily production job run unattended.
-  launch-approval:
-    needs: production-pilot
-    if: ${{ !cancelled() && needs.production-pilot.result == 'success' }}
-    runs-on: ubuntu-latest
-    environment: prod-launch
-    steps:
-      - run: echo "Pilot checks approved; opening production to the public."
-
   production:
-    needs: [resolve, publish, production-pilot, launch-approval]
+    needs: [resolve, publish, production-pilot]
     if: >-
       !cancelled() && needs.resolve.result == 'success' &&
       (needs.publish.result == 'success' || (inputs.operation == 'retry-production' && needs.publish.result == 'skipped')) &&
-      ((needs.production-pilot.result == 'success' && needs.launch-approval.result == 'success') ||
+      (needs.production-pilot.result == 'success' ||
       (!inputs.first_public_launch && inputs.version != 'v0.1.0' && needs.production-pilot.result == 'skipped'))
     permissions:
       contents: read

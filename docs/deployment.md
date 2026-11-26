@@ -33,7 +33,7 @@ bash scripts/deploy.sh dev
 
 The script runs unit tests and frontend build, assembles license notices, builds images with Cloud Build, validates every bundled preset and produces demo PDF/HTML, resolves immutable image digests, applies the runtime stack, publishes Firebase Hosting, and checks health. A failed container smoke test prevents promotion. The infra lock controls shared Python dependencies; the upstream lock supplies additional processor packages. Package compatibility and ASGI app construction are checked before export smoke tests. Build logs and source archives are retained in the managed build bucket for 30 days.
 
-Use the [release procedure](../RELEASE_PROCEDURE.md) to deploy a tagged version to production. The first public launch requires an operator pilot, reviewers on the `prod-launch` environment, App Check, and the approved privacy notice.
+Use the [release procedure](../RELEASE_PROCEDURE.md) to deploy a tagged version to production. The first public launch requires an operator pilot, App Check, and the approved privacy notice; tagging the release is its approval.
 
 Upstream commits are exact hashes, found when a deployment runs (`scripts/upstream.py`). Development, unless it is a release's development stage, uses the `main` heads of opensiddur-processor and opensiddur-projects. A release, in every stage, and production use their newest published, full releases; a release run resolves them once and every stage checks them. A local image build (without `deploy.sh`) needs `python3 scripts/upstream.py choose dev` (the main branches) or `choose prod` (the newest releases) first; `fetch_sources.py` prints the pins it uses. The job and preview services are versioned by a content hash covering application code, lockfiles and upstream references. Existing worker services/job definitions are retained in `release_images`, preserving queued jobs across updates. Keep images and definitions needed by outstanding work. Delete inactive versions only after confirming no queued/running build references them.
 
@@ -49,7 +49,7 @@ Internal account UUIDs are independent of Firebase UIDs. Token verification and 
 
 ## GitHub deployment
 
-Terraform creates a GitHub OIDC trust restricted to this repository and `refs/heads/main`. Configure GitHub `dev` and `prod` environments, without required reviewers: the scheduled jobs deploy to them unattended, and reviewers would pause them. Create a `prod-launch` environment with required reviewers and no secrets; only a first public launch waits on it, between the pilot and opening admissions. `dev` and `prod` need:
+Terraform creates a GitHub OIDC trust restricted to this repository and `refs/heads/main`. Configure GitHub `dev` and `prod` environments, without required reviewers: the scheduled jobs deploy to them unattended, and reviewers would pause them. `dev` and `prod` need:
 
 - Variables: `WIF_PROVIDER`, `DEPLOY_SERVICE_ACCOUNT`, `PRIVACY_OPERATOR`, `PRIVACY_CONTACT`, `PRIVACY_READY`, `APP_CHECK_SITE_KEY`, `GOOGLE_AUTH_ENABLED`.
 - Secret: `DEPLOY_CONFIG`, containing the private environment tfvars (without image coordinates; release history is recovered from the private state bucket).

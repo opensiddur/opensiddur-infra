@@ -32,12 +32,9 @@ backend are ready. Follow [the deployment guide](docs/deployment.md) for
 foundation setup and the separate GitHub environments.
 
 - In GitHub, restrict the `prod` environment's deployments to `main`, without
-  required reviewers: running the release workflow is the decision to deploy,
-  and the daily production job must run unattended. Create a `prod-launch`
-  environment with required reviewers who can confirm the production
-  acceptance checks, and disable administrator bypass; a first public launch
-  waits on it between the pilot and opening admissions. Keep Workload Identity
-  Federation restricted to `refs/heads/main`.
+  required reviewers: tagging a release (running the release workflow) is the
+  decision to deploy, and the daily production job must run unattended. Keep
+  Workload Identity Federation restricted to `refs/heads/main`.
 - Configure production email-link sign-in, support and sender details, and
   authorize `opensiddur-builder-prod.web.app` in Firebase Auth. Register the
   production Firebase web app in App Check using a reCAPTCHA Enterprise key
@@ -64,15 +61,15 @@ tag and GitHub Release, then deploys to production. The production build uses
 that same commit, lockfiles and upstream releases, builds and smoke-tests images
 in its own project, and deploys the recorded digests.
 
-On the first release, the pilot job deploys with admissions closed, and the
-`launch-approval` job then waits on the `prod-launch` reviewers. Before
-approving it, use a named operator to sign in by email,
-give consent, generate HTML and PDF samples, and download a completed book.
-Check that a non-operator cannot submit and that a consented operator request
-without App Check receives HTTP 403. Check the privacy notice and confirm the
-production domain and version. The public job verifies the staged Hosting
-bundle and API before opening admissions. Afterwards, verify a signed-in
-non-operator with valid App Check can submit and download a test build.
+Tagging the release is the approval for its public launch. On the first
+release, the pilot job deploys with admissions closed and the public job opens
+them as soon as it succeeds; the public job verifies the staged Hosting bundle
+and API first. Before tagging, check the same build in development: sign in by
+email, give consent, generate HTML and PDF samples, and download a completed
+book. Afterwards, in production, check the privacy notice and the production
+domain and version, that a non-operator without App Check is refused (HTTP 403),
+and that a signed-in non-operator with valid App Check can submit and download a
+test build.
 
 The API health endpoint reports the version, source commit, runtime ID and
 admission status. The private state bucket retains the smoke-tested image

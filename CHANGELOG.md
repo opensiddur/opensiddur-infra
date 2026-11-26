@@ -9,8 +9,8 @@
   redeploys it when either publishes a newer release, unless production updates are paused.
   Nothing upstream is pinned in this repository any more; production no longer builds from a
   bootstrap snapshot.
-  Production deployments no longer wait for reviewers; only a first public launch does,
-  on the new `prod-launch` environment, between the pilot and opening admissions.
+  Production deployments no longer wait for reviewers: tagging a Builder release is the
+  approval, including for the first public launch.
 - With opensiddur-processor v0.8.0, the Builder offers links to the scans and the electronic
   book's scan viewer: `typography.markers.scan_links` (where the link symbol goes:
   none, inline or margin), `typography.styles.scan_link`, and `electronic.scan_viewer`
