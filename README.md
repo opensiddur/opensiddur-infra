@@ -39,7 +39,7 @@ Cloud infrastructure is managed with Terraform and deployment scripts. GitHub Ac
 
 ## Versioning and limitations
 
-`releases.lock.json` pins production's upstream commits: published, full releases of opensiddur-processor and opensiddur-projects, which a check enforces. Development runs the latest infra `main` with the newest release *or prerelease* of each, found when it is deployed (`scripts/upstream.py`), so a prerelease can be tried there before production pins its release. New releases must pass compatibility and PDF/HTML checks before promotion.
+No upstream commits are pinned in this repository; each deployment finds them (`scripts/upstream.py`). Development ([opensiddur-builder-dev.web.app](https://opensiddur-builder-dev.web.app/)) runs the `main` branches of infra, opensiddur-processor and opensiddur-projects, redeployed on every merge here and daily. Production ([opensiddur-builder-prod.web.app](https://opensiddur-builder-prod.web.app/)) runs the latest Builder release with the newest full releases of opensiddur-processor and opensiddur-projects, redeployed daily when either publishes a new one. Every deployment must pass compatibility and PDF/HTML checks.
 
 The preview substitutes the synthetic `preview-he`/`preview-en` works (pinned in `previews.lock.json`) for the selected work and sources. They exercise representative structures and conditions but cannot illustrate every project's annotations or source coverage. Full builds preserve the selected settings without demo overrides.
 

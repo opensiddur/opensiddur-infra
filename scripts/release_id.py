@@ -12,7 +12,6 @@ def release_identity():
             "Dockerfile",
             "pyproject.toml",
             "uv.lock",
-            "releases.lock.json",
             "fonts.lock.json",
             "previews.lock.json",
             "web/package-lock.json",

@@ -15,11 +15,10 @@ for workers and queued jobs.
    editing `pyproject.toml`. In `web`, use
    `npm version X.Y.Z --no-git-tag-version` to update both frontend files.
    Version `0.1.0` is already set in both packages and lockfiles.
-3. Review the processor, corpus, preview fixture and font pack pins. Development
-   runs the newest upstream release or prerelease; once the ones it has been
-   trying are published as full releases, pin those in `releases.lock.json` in
-   a PR: each repository's commit, and its release tag under `tags`. Production accepts full releases only (`scripts/upstream.py check`).
-   Release builds use the tagged lockfiles.
+3. Review the preview fixture and font pack pins. opensiddur-processor and
+   opensiddur-projects are not pinned here: the release builds with their newest
+   full releases, and production takes their later releases daily
+   (`Keep production current`). Release builds use the tagged lockfiles.
 4. From the candidate checkout run `python3 scripts/release_notes.py vX.Y.Z`
    with Python 3.11 or newer to preview the notes and validate versions.
    Merge the PR after the normal checks pass.
@@ -32,10 +31,10 @@ Firebase Hosting and Auth, Cloud Build, Cloud Run and the Terraform state
 backend are ready. Follow [the deployment guide](docs/deployment.md) for
 foundation setup and the separate GitHub environments.
 
-- In GitHub, configure required reviewers on `prod`, restrict deployments
-  to `main`, and disable administrator bypass. Select reviewers who can
-  confirm the production acceptance checks. Keep Workload Identity Federation
-  restricted to `refs/heads/main`.
+- In GitHub, restrict the `prod` environment's deployments to `main`, without
+  required reviewers: tagging a release (running the release workflow) is the
+  decision to deploy, and the daily production job must run unattended. Keep
+  Workload Identity Federation restricted to `refs/heads/main`.
 - Configure production email-link sign-in, support and sender details, and
   authorize `opensiddur-builder-prod.web.app` in Firebase Auth. Register the
   production Firebase web app in App Check using a reCAPTCHA Enterprise key
@@ -58,18 +57,19 @@ requires a pilot for `v0.1.0` even if the option is omitted.
 
 The workflow tests and deploys the exact triggering commit to development.
 Once development verifies the API and hosted bundle, it publishes the annotated
-tag and GitHub Release. GitHub then requests production approval. The production
-build uses that same commit and lockfiles, builds and smoke-tests images in its
-own project, and deploys the recorded digests.
+tag and GitHub Release, then deploys to production. The production build uses
+that same commit, lockfiles and upstream releases, builds and smoke-tests images
+in its own project, and deploys the recorded digests.
 
-On the first release, approve the pilot job and wait for it to finish. Before
-approving the separate public job, use a named operator to sign in by email,
-give consent, generate HTML and PDF samples, and download a completed book.
-Check that a non-operator cannot submit and that a consented operator request
-without App Check receives HTTP 403. Check the privacy notice and confirm the
-production domain and version. The public job verifies the staged Hosting
-bundle and API before opening admissions. Afterwards, verify a signed-in
-non-operator with valid App Check can submit and download a test build.
+Tagging the release is the approval for its public launch. On the first
+release, the pilot job deploys with admissions closed and the public job opens
+them as soon as it succeeds; the public job verifies the staged Hosting bundle
+and API first. Before tagging, check the same build in development: sign in by
+email, give consent, generate HTML and PDF samples, and download a completed
+book. Afterwards, in production, check the privacy notice and the production
+domain and version, that a non-operator without App Check is refused (HTTP 403),
+and that a signed-in non-operator with valid App Check can submit and download a
+test build.
 
 The API health endpoint reports the version, source commit, runtime ID and
 admission status. The private state bucket retains the smoke-tested image
@@ -82,14 +82,28 @@ admission policy verified at deployment.
 If development fails, fix the issue and rerun the release. If tag creation
 succeeded but publication failed, rerun the failed publish job at the same
 commit. Never move a published tag. If production fails after publication,
-run **Release Builder** from `main` with operation `retry-production` and
-the published tag. This uses its original commit and reuses any recorded
-smoke-tested production images. Retrying `v0.1.0` runs the pilot checks and
-approval sequence again, which temporarily closes public admissions.
+re-run the failed jobs of the original run: that keeps the upstream releases it
+resolved and reuses any smoke-tested production images recorded for them. Running
+**Release Builder** with operation `retry-production` and the published tag also
+works, but it resolves the newest upstream releases again, so after a new
+upstream release it builds and deploys a combination development never ran.
+A pilot is refused for a version that is already public, since it would close
+admissions; a first launch whose public step failed can retry with its pilot.
 
-To roll back, read the previous tag’s `public.json` from the production state
-bucket and review a Terraform plan using its `worker_image`, `api_image` and
-`release` as `image`, `api_image` and `release_id`. Load the complete release
+Before rolling back or pausing production, stop its daily upstream updates, which
+would otherwise redeploy the latest release with admissions open:
+
+```bash
+echo "Rolled back to vX.Y.Z: reason" |
+  gcloud storage cp - gs://opensiddur-builder-prod-tfstate/deployments/production-paused
+```
+
+Delete that object to resume them. To roll back a Builder release, read the
+previous tag’s `public.json` from the production state bucket; to roll back an
+upstream update of the same release, read the earlier record under
+`versions/<tag>/public/<runtime ID>.json`. Review a Terraform plan using its
+`worker_image`, `api_image` and `release` as `image`, `api_image` and
+`release_id`. Load the complete release
 history with `scripts/deployment_history.py load` before planning. Use the
 targets from `scripts/runtime-targets.sh` and keep App Check enabled. Set
 `submissions_enabled=false` until the rollback is verified. Apply the plan,

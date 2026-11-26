@@ -1,4 +1,10 @@
-"""Validate a Builder version and generate the notes for its annotated tag."""
+"""Validate a Builder version and generate the notes for its annotated tag.
+
+    release_notes.py vX.Y.Z [PINS]
+
+PINS is the upstream pins file the release was resolved with (``upstream.py resolve
+release``); without it the notes list only the inputs pinned in this repository.
+"""
 
 import json
 import re
@@ -7,7 +13,7 @@ import tomllib
 from pathlib import Path
 
 
-def notes(tag):
+def notes(tag, upstream=None):
     if not re.fullmatch(r"v(?:0|[1-9][0-9]*)(?:\.(?:0|[1-9][0-9]*)){2}", tag):
         raise ValueError("Use a version tag in vX.Y.Z format.")
     version = tag[1:]
@@ -38,7 +44,7 @@ def notes(tag):
     )
     if not match or not match[1].strip():
         raise ValueError(f"Add a nonempty [{version}] entry to CHANGELOG.md.")
-    revisions = json.loads(Path("releases.lock.json").read_text())
+    revisions = json.loads(Path(upstream).read_text()) if upstream else {}
     revisions["preview fixtures"] = json.loads(Path("previews.lock.json").read_text())[
         "revision"
     ]
@@ -49,12 +55,13 @@ def notes(tag):
         + (f"{tags[name]} " if name in tags else "")
         + f"`{revisions[name]}`"
         for name in ("processor", "projects", "preview fixtures", "font pack")
+        if name in revisions
     )
-    return f"{match[1].strip()}\n\n## Pinned inputs\n\n{pins}"
+    return f"{match[1].strip()}\n\n## Inputs at publication\n\n{pins}"
 
 
 if __name__ == "__main__":
     try:
-        print(notes(sys.argv[1]))
+        print(notes(*sys.argv[1:3]))
     except ValueError as error:
         sys.exit(str(error))

@@ -12,7 +12,7 @@ on:
         default: release
         options: [release, retry-production]
       first_public_launch:
-        description: Stage an operator pilot before requesting public launch approval
+        description: Stage an operator pilot before opening production to the public
         type: boolean
         default: false
 
@@ -28,6 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       commit: ${{ steps.source.outputs.commit }}
+      pins: ${{ steps.upstream.outputs.pins }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -41,11 +42,16 @@ jobs:
           VERSION: ${{ inputs.version }}
           OPERATION: ${{ inputs.operation }}
         run: bash scripts/resolve_release.sh "$VERSION" "$OPERATION"
-      - name: Require production reviewers
+      # The newest full releases of opensiddur-processor and opensiddur-projects, once for
+      # every stage, so the development and production stages build the same images.
+      - name: Resolve upstream releases
+        id: upstream
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          curl -fsS --max-time 20 "https://api.github.com/repos/$GITHUB_REPOSITORY/environments/prod" |
-            jq -e 'any(.protection_rules[]; .type == "required_reviewers" and (.reviewers | length > 0))' >/dev/null ||
-            { echo "Configure required reviewers on the prod environment before releasing." >&2; exit 1; }
+          set -o pipefail
+          python3 scripts/upstream.py resolve release | jq -c . > "$RUNNER_TEMP/pins.json"
+          printf 'pins=%s\n' "$(cat "$RUNNER_TEMP/pins.json")" >> "$GITHUB_OUTPUT"
 
   development:
     needs: resolve
@@ -59,6 +65,7 @@ jobs:
     with:
       environment: dev
       commit: ${{ needs.resolve.outputs.commit }}
+      upstream: ${{ needs.resolve.outputs.pins }}
       version: ${{ inputs.version }}
 
   publish:
@@ -77,9 +84,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ inputs.version }}
           COMMIT: ${{ needs.resolve.outputs.commit }}
+          PINS: ${{ needs.resolve.outputs.pins }}
         run: |
           notes="$RUNNER_TEMP/builder-release-notes.md"
-          python3 scripts/release_notes.py "$VERSION" > "$notes"
+          printf '%s\n' "$PINS" > "$RUNNER_TEMP/pins.json"
+          python3 scripts/release_notes.py "$VERSION" "$RUNNER_TEMP/pins.json" > "$notes"
           ref="refs/tags/$VERSION"
           if git show-ref --verify --quiet "$ref"; then
             test "$(git cat-file -t "$ref")" = tag
@@ -107,6 +116,7 @@ jobs:
     with:
       environment: prod
       commit: ${{ needs.resolve.outputs.commit }}
+      upstream: ${{ needs.resolve.outputs.pins }}
       version: ${{ inputs.version }}
       phase: pilot
 
@@ -127,6 +137,7 @@ jobs:
     with:
       environment: prod
       commit: ${{ needs.resolve.outputs.commit }}
+      upstream: ${{ needs.resolve.outputs.pins }}
       version: ${{ inputs.version }}
       phase: public
       first_public_launch: ${{ inputs.first_public_launch || inputs.version == 'v0.1.0' }}

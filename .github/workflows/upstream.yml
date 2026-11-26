@@ -1,9 +1,9 @@
 name: Keep development current
-# Development runs the newest infra main with the newest release or prerelease of
+# Development (https://opensiddur-builder-dev.web.app/) runs the main branches of infra,
 # opensiddur-processor and opensiddur-projects. Redeploy it when any of the three has moved
-# since its last deployment (which deploy.sh records): on every merge to main, and daily for
-# upstream releases, which this repository cannot see. Production is unaffected: it is
-# deployed only by the release workflow, from releases.lock.json.
+# since its last deployment (which deploy.sh records): on every merge to main here, and
+# daily for the other two, which this repository cannot see. Production follows releases
+# instead (release.yml and production.yml).
 on:
   push:
     branches: [main]
@@ -34,7 +34,7 @@ jobs:
         env: { GH_TOKEN: "${{ github.token }}" }
         run: |
           set -o pipefail
-          python3 scripts/upstream.py resolve prerelease |
+          python3 scripts/upstream.py resolve main |
             jq -c --arg commit "$GITHUB_SHA" '{infra_commit: $commit, processor, projects}' > wanted.json
           record=gs://opensiddur-builder-dev-tfstate/deployments/development.json
           if gcloud storage cat "$record" > deployed-record.json 2> read-error; then
@@ -55,7 +55,7 @@ jobs:
     permissions:
       contents: read
       id-token: write
-    # deploy.sh finds the newest upstream releases again, and records what it deployed.
+    # deploy.sh finds the main heads again, and records what it deployed.
     uses: ./.github/workflows/deploy-runtime.yml
     secrets:
       DEPLOY_CONFIG: ${{ secrets.DEPLOY_CONFIG }}
