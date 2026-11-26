@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+- Pin opensiddur-processor v0.8.0, with links to the scans and the electronic book's scan
+  viewer. The Builder now offers `typography.markers.scan_links` (where the link symbol goes:
+  none, inline or margin), `typography.styles.scan_link`, and `electronic.scan_viewer`
+  (opening a scan inside the HTML book, full screen, beside the text or below it). They show
+  in full builds only: the preview's synthetic works have no scanned pages, and a preview runs
+  no scripts and loads nothing remote. Full builds of the Birnbaum siddur, Asher's Selichoth
+  and the 1822 Heidenheim Haggadah have links now; JPS 1917's come with the next
+  opensiddur-projects book release (the pin stays at v20261108). The processor pin also
+  brings v0.8.0's other export fixes, among them parallel PDF column flow, heading direction,
+  note placement and character highlights; see its changelog.
 - The worker image is built on Ubuntu 26.04 instead of Debian trixie, so PDFs are typeset
   with TeX Live 2025, as in the processor's CI and development. Under trixie's TeX Live 2024,
   parallel Hebrew–English columns swapped sides and their line numbers were set over the text
@@ -13,15 +23,6 @@
   when any has moved.
   Production still builds only from `releases.lock.json`, which a check (on every pull
   request, and before a release deploys) now requires to pin full releases, named by tag.
-- Pin opensiddur-processor v0.8.0, with links to the scans and the electronic book's scan
-  viewer. The Builder now offers `typography.markers.scan_links` (where the link symbol goes:
-  none, inline or margin), `typography.styles.scan_link`, and `electronic.scan_viewer`
-  (opening a scan inside the HTML book, full screen, beside the text or below it). They show
-  in full builds only: the preview's synthetic works have no scanned pages, and a preview runs
-  no scripts and loads nothing remote. The opensiddur-projects pin stays at v20261108; JPS
-  1917's links to its scan come with the next book release. The processor pin also brings its
-  fixes to parallel PDF column flow, heading direction and note placement, character
-  highlights in PDF and HTML, and poetry lines in marker mode.
 - Pin the first published releases: opensiddur-processor v0.7.0 and the opensiddur-projects
   book release v20261108. The pins are no longer a bootstrap snapshot.
 - Pin opensiddur-processor with the typography roles for highlights, readings, foreign text,
