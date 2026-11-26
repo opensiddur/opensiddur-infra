@@ -1,13 +1,38 @@
 #!/usr/bin/env python3
-"""Publish license texts present in installed distributions and Debian copyright files."""
+"""Publish license texts present in installed distributions and the system packages' copyright files."""
 
 import importlib.metadata
 import json
 import os
 from pathlib import Path
 
+#: Where each distribution the image may be built on lists its packages and licenses.
+DISTRIBUTIONS = {
+    "debian": (
+        "Debian",
+        "https://packages.debian.org/",
+        "https://www.debian.org/legal/licenses/",
+    ),
+    "ubuntu": (
+        "Ubuntu",
+        "https://packages.ubuntu.com/",
+        "https://packages.ubuntu.com/base-files",
+    ),
+}
 
-def generate(bundle, processor):
+
+def system_distribution(os_release=Path("/etc/os-release")):
+    """The image's distribution from os-release; Debian when it cannot be read."""
+    try:
+        lines = os_release.read_text().splitlines()
+    except OSError:
+        lines = []
+    fields = dict(line.split("=", 1) for line in lines if "=" in line)
+    return DISTRIBUTIONS.get(fields.get("ID", "").strip('"'), DISTRIBUTIONS["debian"])
+
+
+def generate(bundle, processor, os_release=Path("/etc/os-release")):
+    system, packages, licenses = system_distribution(os_release)
     release = json.loads((bundle / "release.json").read_text())
     components = []
     for distribution in importlib.metadata.distributions():
@@ -38,8 +63,8 @@ def generate(bundle, processor):
             {
                 "name": path.parent.name,
                 "version": "container package",
-                "license": "See Debian copyright and license notices",
-                "source": "https://packages.debian.org/" + path.parent.name,
+                "license": f"See {system} copyright and license notices",
+                "source": packages + path.parent.name,
                 "text": path.read_text(errors="replace"),
             }
         )
@@ -51,7 +76,7 @@ def generate(bundle, processor):
                     "name": path.name,
                     "version": "license text",
                     "license": path.name,
-                    "source": "https://www.debian.org/legal/licenses/",
+                    "source": licenses,
                     "text": path.read_text(errors="replace"),
                 }
             )
