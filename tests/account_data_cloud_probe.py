@@ -16,7 +16,8 @@ import zipfile
 from dataclasses import replace
 
 import firebase_admin
-from firebase_admin import auth, credentials as firebase_credentials
+from firebase_admin import auth
+from firebase_admin import credentials as firebase_credentials
 from google.oauth2.credentials import Credentials
 
 from opensiddur_infra.config import Config

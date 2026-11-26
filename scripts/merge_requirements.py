@@ -5,10 +5,9 @@ combinations rather than silently downgrading the web/auth stack.
 """
 
 import importlib.metadata
+import re
 import sys
 from pathlib import Path
-
-import re
 
 
 def canonicalize_name(name):

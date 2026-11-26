@@ -10,7 +10,7 @@ from dataclasses import replace
 from google.cloud import run_v2, tasks_v2
 from google.oauth2.credentials import Credentials
 
-from opensiddur_infra.builds import Builds, TERMINAL
+from opensiddur_infra.builds import TERMINAL, Builds
 from opensiddur_infra.config import Config
 from opensiddur_infra.storage import Storage
 from opensiddur_infra.store import FirestoreStore

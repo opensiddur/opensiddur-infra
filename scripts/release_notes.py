@@ -45,7 +45,9 @@ def notes(tag):
     revisions["font pack"] = json.loads(Path("fonts.lock.json").read_text())["revision"]
     tags = revisions.get("tags") or {}
     pins = "\n".join(
-        f"- {name}: " + (f"{tags[name]} " if name in tags else "") + f"`{revisions[name]}`"
+        f"- {name}: "
+        + (f"{tags[name]} " if name in tags else "")
+        + f"`{revisions[name]}`"
         for name in ("processor", "projects", "preview fixtures", "font pack")
     )
     return f"{match[1].strip()}\n\n## Pinned inputs\n\n{pins}"

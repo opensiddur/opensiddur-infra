@@ -22,3 +22,13 @@ packages = ["app/opensiddur_infra"]
 pythonpath = ["app"]
 [tool.ruff]
 target-version = "py312"
+# Modules in app/ and scripts/ are this repo's own code (scripts import each other by name).
+src = ["app", "scripts"]
+
+[tool.ruff.lint]
+# Listed explicitly: ruff's default rule set changes between releases.
+select = ["E4", "E7", "E9", "F", "B", "I", "UP"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency markers are meant to be called in argument defaults.
+extend-immutable-calls = ["fastapi.Depends"]

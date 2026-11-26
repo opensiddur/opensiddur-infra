@@ -3,7 +3,7 @@
 import hashlib
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from .progress import build_steps
 
@@ -31,7 +31,7 @@ class Builds:
         if kind not in LIMITS:
             raise Rejected("Unknown build type", 422)
         now = self.clock()
-        day = datetime.fromtimestamp(now, timezone.utc).strftime("%Y-%m-%d")
+        day = datetime.fromtimestamp(now, UTC).strftime("%Y-%m-%d")
         group = "full" if kind == "full" else "preview"
         count_limit, seconds, user_seconds, global_seconds = LIMITS[kind]
         identifier = str(uuid.uuid4())

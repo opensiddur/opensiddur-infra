@@ -49,8 +49,8 @@ class Dispatcher:
                 }
             )
         else:
-            from google.cloud import tasks_v2
             from google.api_core.exceptions import AlreadyExists
+            from google.cloud import tasks_v2
 
             client = tasks_v2.CloudTasksClient()
             parent = client.queue_path(
@@ -96,8 +96,8 @@ class Dispatcher:
 
         if build["type"] != "full":
             return time.time() > build["started"] + 390
-        from google.cloud import run_v2
         from google.api_core.exceptions import NotFound
+        from google.cloud import run_v2
 
         job = build.get("job") or self.config.job
         name = job + "/executions/" + build["execution"]

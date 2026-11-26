@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- Checks run ruff, the Python linter and formatter, on every push and pull request.
 - Development follows the newest release *or prerelease* of opensiddur-processor and
   opensiddur-projects, and the latest infra `main`: every development deployment that is
   not a release finds them, and development is redeployed on every merge to `main` and daily

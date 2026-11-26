@@ -8,18 +8,18 @@ from lxml import etree
 from opensiddur.exporter.derived_settings import STATIC_DEFAULTS
 from opensiddur.exporter.tex.running_heads import RUNNING_HEAD_CODES
 from opensiddur.exporter.typography import TypographyConfig
+
+from notices import generate
 from opensiddur_infra.fonts import inventory
+from release_id import release_identity
+from upstream import read_pins
 
 processor = Path(os.environ.get("PROCESSOR_DIR", "/opt/processor"))
 bundle = Path(os.environ.get("BUNDLE_DIR", "/opt/bundle"))
 bundle.mkdir(parents=True, exist_ok=True)
 projects = processor / "opensiddur-projects/project"
 ns = {"t": "http://www.tei-c.org/ns/1.0"}
-from upstream import read_pins
-
 lock = read_pins()
-from release_id import release_identity
-
 release = release_identity()
 fonts = inventory()
 fonts["defaults"] = {
@@ -100,8 +100,6 @@ source = (
 # Preview works are versioned with all other projects, not generated inside the image.
 for name in ("preview-he", "preview-en"):
     assert (projects / name / "index.xml").is_file(), f"Missing preview work: {name}"
-from notices import generate
-
 (bundle / "notices.json").write_text(
     json.dumps(generate(bundle, processor), ensure_ascii=False)
 )

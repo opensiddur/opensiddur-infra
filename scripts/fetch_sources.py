@@ -5,11 +5,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+from fetch_previews import fetch_previews
 from upstream import lock_path, read_pins
 
 lock = read_pins()
-print(f"Upstream pins from {lock_path()}: processor {lock['processor']}, "
-      f"projects {lock['projects']} ({lock.get('channel', 'release')})", flush=True)
+print(
+    f"Upstream pins from {lock_path()}: processor {lock['processor']}, "
+    f"projects {lock['projects']} ({lock.get('channel', 'release')})",
+    flush=True,
+)
 processor = Path(sys.argv[1])
 for name, target in (
     ("processor", processor),
@@ -39,7 +43,5 @@ for name, target in (
     subprocess.run(
         ["git", "-C", str(target), "checkout", "--detach", "FETCH_HEAD"], check=True
     )
-
-from fetch_previews import fetch_previews
 
 fetch_previews(processor)

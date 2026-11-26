@@ -336,7 +336,7 @@ class DataOperations:
         for build in builds:
             key = f"build:{build['id']}"
 
-            def cancel(rows):
+            def cancel(rows, key=key):
                 if rows[key]:
                     rows[key].update(cancel=True, deleted=True)
 
@@ -385,7 +385,7 @@ class DataOperations:
         for group in ("full", "preview"):
             key = f"slots:{group}"
 
-            def release(rows):
+            def release(rows, key=key):
                 if rows[key]:
                     rows[key]["ids"] = [i for i in rows[key]["ids"] if i not in ids]
 
@@ -428,7 +428,7 @@ def reconcile_operations(config, store, storage, verifier, dispatcher):
             # retries ambiguous launches; the job claim prevents duplicate execution.
             key = f"operation:{row['id']}"
 
-            def dispatch(rows):
+            def dispatch(rows, key=key):
                 current = rows[key]
                 if not current or current.get("dispatch_until", 0) > now:
                     return False
@@ -449,7 +449,7 @@ def reconcile_operations(config, store, storage, verifier, dispatcher):
             # Old quotas lived 32 days; old idempotency records lived 31.
             reduction = (2 if value["kind"] == "quota" else 1) * DAY
 
-            def migrate(rows):
+            def migrate(rows, key=key, reduction=reduction):
                 current = rows[key]
                 if current and not current.get("retention_version"):
                     current.update(

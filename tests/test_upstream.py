@@ -19,18 +19,38 @@ import upstream  # noqa: E402
 # older commit than v0.7.0 but published after it. Commits are the tag name, hex-encoded.
 RELEASES = {
     "processor": [
-        {"tag_name": "v0.9.0", "draft": True, "prerelease": False,
-         "published_at": None},
-        {"tag_name": "v0.7.0", "draft": False, "prerelease": False,
-         "published_at": "2026-11-08T22:15:30Z"},
-        {"tag_name": "v0.8.0-rc.1", "draft": False, "prerelease": True,
-         "published_at": "2026-11-15T10:00:00Z"},
-        {"tag_name": "v0.6.0", "draft": False, "prerelease": False,
-         "published_at": "2026-10-25T03:24:22Z"},
+        {
+            "tag_name": "v0.9.0",
+            "draft": True,
+            "prerelease": False,
+            "published_at": None,
+        },
+        {
+            "tag_name": "v0.7.0",
+            "draft": False,
+            "prerelease": False,
+            "published_at": "2026-11-08T22:15:30Z",
+        },
+        {
+            "tag_name": "v0.8.0-rc.1",
+            "draft": False,
+            "prerelease": True,
+            "published_at": "2026-11-15T10:00:00Z",
+        },
+        {
+            "tag_name": "v0.6.0",
+            "draft": False,
+            "prerelease": False,
+            "published_at": "2026-10-25T03:24:22Z",
+        },
     ],
     "projects": [
-        {"tag_name": "v20261108", "draft": False, "prerelease": False,
-         "published_at": "2026-11-08T23:36:49Z"},
+        {
+            "tag_name": "v20261108",
+            "draft": False,
+            "prerelease": False,
+            "published_at": "2026-11-08T23:36:49Z",
+        },
     ],
 }
 
@@ -61,7 +81,9 @@ class TestResolve(unittest.TestCase):
 
     def test_development_takes_the_newest_prerelease(self):
         pins = upstream.resolve("prerelease")
-        self.assertEqual({"processor": "v0.8.0-rc.1", "projects": "v20261108"}, pins["tags"])
+        self.assertEqual(
+            {"processor": "v0.8.0-rc.1", "projects": "v20261108"}, pins["tags"]
+        )
         self.assertEqual(sha("v0.8.0-rc.1"), pins["processor"])
         self.assertEqual("prerelease", pins["channel"])
 
@@ -90,9 +112,15 @@ class TestCheck(unittest.TestCase):
         self.lock = Path(directory.name) / "releases.lock.json"
 
     def _check(self, processor_tag: str, processor_commit: str = "") -> list[str]:
-        self.lock.write_text(json.dumps(
-            {"processor": processor_commit or sha(processor_tag), "projects": sha("v20261108"),
-             "tags": {"processor": processor_tag, "projects": "v20261108"}}))
+        self.lock.write_text(
+            json.dumps(
+                {
+                    "processor": processor_commit or sha(processor_tag),
+                    "projects": sha("v20261108"),
+                    "tags": {"processor": processor_tag, "projects": "v20261108"},
+                }
+            )
+        )
         return upstream.check(self.lock)
 
     def test_an_older_full_release_is_accepted(self):
@@ -111,7 +139,9 @@ class TestCheck(unittest.TestCase):
         self.assertIn("not the commit", self._check("v0.7.0", sha("v0.6.0"))[0])
 
     def test_a_pin_without_its_tag_is_refused(self):
-        self.lock.write_text(json.dumps({"processor": sha("v0.7.0"), "projects": sha("v20261108")}))
+        self.lock.write_text(
+            json.dumps({"processor": sha("v0.7.0"), "projects": sha("v20261108")})
+        )
         self.assertEqual(2, len(upstream.check(self.lock)))
 
 
@@ -131,10 +161,16 @@ class TestChoose(unittest.TestCase):
         self._lock("v0.7.0")
 
     def _lock(self, processor_tag: str):
-        (self.root / "releases.lock.json").write_text(json.dumps(
-            {"processor": sha(processor_tag), "projects": sha("v20261108"),
-             "tags": {"processor": processor_tag, "projects": "v20261108"},
-             "channel": "release"}))
+        (self.root / "releases.lock.json").write_text(
+            json.dumps(
+                {
+                    "processor": sha(processor_tag),
+                    "projects": sha("v20261108"),
+                    "tags": {"processor": processor_tag, "projects": "v20261108"},
+                    "channel": "release",
+                }
+            )
+        )
 
     def _chosen(self) -> dict:
         return json.loads((self.root / ".bundle/upstream.json").read_text())
@@ -159,13 +195,17 @@ class TestChoose(unittest.TestCase):
 
     def test_development_takes_the_pins_it_is_given(self):
         given = self.root / "given.json"
-        given.write_text(json.dumps({"processor": sha("v0.6.0"), "projects": sha("v20261108")}))
+        given.write_text(
+            json.dumps({"processor": sha("v0.6.0"), "projects": sha("v20261108")})
+        )
         upstream.choose("dev", "", str(given))
         self.assertEqual(sha("v0.6.0"), self._chosen()["processor"])
 
     def test_a_pin_that_is_not_a_commit_hash_is_refused(self):
         given = self.root / "given.json"
-        given.write_text(json.dumps({"processor": "main", "projects": sha("v20261108")}))
+        given.write_text(
+            json.dumps({"processor": "main", "projects": sha("v20261108")})
+        )
         with self.assertRaises(SystemExit):
             upstream.choose("dev", "", str(given))
 
@@ -180,18 +220,31 @@ class TestTheChosenPins(unittest.TestCase):
         previous = os.getcwd()
         os.chdir(self.root)
         self.addCleanup(os.chdir, previous)
-        for name in ("Dockerfile", "pyproject.toml", "uv.lock", "fonts.lock.json",
-                     "previews.lock.json", "web/package-lock.json"):
+        for name in (
+            "Dockerfile",
+            "pyproject.toml",
+            "uv.lock",
+            "fonts.lock.json",
+            "previews.lock.json",
+            "web/package-lock.json",
+        ):
             (self.root / name).parent.mkdir(parents=True, exist_ok=True)
             (self.root / name).write_text(name)
         (self.root / "releases.lock.json").write_text(
-            json.dumps({"processor": sha("v0.7.0"), "projects": sha("v20261108")}))
+            json.dumps({"processor": sha("v0.7.0"), "projects": sha("v20261108")})
+        )
 
     def _choose(self, processor_tag: str):
         (self.root / ".bundle").mkdir(exist_ok=True)
-        (self.root / ".bundle/upstream.json").write_text(json.dumps(
-            {"processor": sha(processor_tag), "projects": sha("v20261108"),
-             "channel": "prerelease"}))
+        (self.root / ".bundle/upstream.json").write_text(
+            json.dumps(
+                {
+                    "processor": sha(processor_tag),
+                    "projects": sha("v20261108"),
+                    "channel": "prerelease",
+                }
+            )
+        )
 
     def test_without_a_choice_the_build_uses_production_pins(self):
         self.assertEqual(sha("v0.7.0"), upstream.read_pins()["processor"])
@@ -205,7 +258,9 @@ class TestTheChosenPins(unittest.TestCase):
         self._choose("v0.8.0-rc.1")
         development = release_id.release_identity()
         self._choose("v0.8.0-rc.2")
-        self.assertEqual(3, len({production, development, release_id.release_identity()}))
+        self.assertEqual(
+            3, len({production, development, release_id.release_identity()})
+        )
 
 
 if __name__ == "__main__":

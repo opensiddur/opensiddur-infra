@@ -4,6 +4,7 @@ import copy
 import hashlib
 import threading
 from collections.abc import Callable
+from datetime import UTC
 
 
 def document_id(key):
@@ -95,7 +96,7 @@ class FirestoreStore:
                 if value is None:
                     transaction.delete(self.ref(key))
                 else:
-                    from datetime import datetime, timezone
+                    from datetime import datetime
 
                     if "expires" in value and (
                         value.get("kind") != "build"
@@ -103,7 +104,7 @@ class FirestoreStore:
                         in {"succeeded", "partial", "failed", "cancelled", "expired"}
                     ):
                         value["expires_at"] = datetime.fromtimestamp(
-                            value["expires"], timezone.utc
+                            value["expires"], UTC
                         )
                     transaction.set(self.ref(key), value)
             return result
