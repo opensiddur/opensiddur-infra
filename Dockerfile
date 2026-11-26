@@ -1,7 +1,7 @@
 # Ubuntu 26.04 carries the TeX Live the processor's CI and its developers typeset with (2025).
 # Its own Python is 3.14, outside requires-python, so uv provides 3.12 in /opt/python.
 FROM ubuntu:26.04 AS common
-ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BUNDLE_DIR=/opt/bundle PROCESSOR_DIR=/opt/processor \
+ENV LANG=C.UTF-8 PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 BUNDLE_DIR=/opt/bundle PROCESSOR_DIR=/opt/processor \
     UV_PYTHON=3.12 UV_PYTHON_PREFERENCE=only-managed UV_PYTHON_INSTALL_DIR=/opt/python
 RUN apt-get update && apt-get install -y --no-install-recommends git ca-certificates tzdata fontconfig fonts-culmus fonts-linuxlibertine fonts-sil-ezra fonts-freefont-otf fonts-dejavu-core fonts-dejavu-extra fonts-liberation fonts-noto-core fonts-crosextra-carlito fonts-crosextra-caladea && rm -rf /var/lib/apt/lists/*
 COPY --from=ghcr.io/astral-sh/uv:0.12.21 /uv /uvx /usr/local/bin/

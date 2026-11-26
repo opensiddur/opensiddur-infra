@@ -40,25 +40,40 @@ class DistributionTests(unittest.TestCase):
         path = self.os_release("ID=alpine\n")
         self.assertEqual(notices.system_distribution(path)[0], "Debian")
 
-    def test_generate_names_the_distribution_in_package_notices(self):
+    def test_single_quoted_ids_are_read(self):
+        path = self.os_release("ID='ubuntu'\n")
+        self.assertEqual(notices.system_distribution(path)[0], "Ubuntu")
+
+    def test_generate_links_package_notices_to_the_distribution(self):
         with tempfile.TemporaryDirectory() as directory:
-            bundle = Path(directory) / "bundle"
-            processor = Path(directory) / "processor"
-            bundle.mkdir()
-            processor.mkdir()
+            root = Path(directory)
+            bundle, processor = root / "bundle", root / "processor"
+            docs, common = root / "doc", root / "common-licenses"
+            for path in (bundle, processor, docs / "fonts-culmus", common):
+                path.mkdir(parents=True)
             (bundle / "release.json").write_text(
                 json.dumps({"release": "r1", "processor": "abc"})
             )
             (processor / "LICENSE").write_text("licence")
-            path = self.os_release("ID=ubuntu\n")
-            result = notices.generate(bundle, processor, os_release=path)
-        packages = [
-            c for c in result["components"] if c["version"] == "container package"
-        ]
-        for component in packages:
-            self.assertTrue(
-                component["source"].startswith("https://packages.ubuntu.com/")
+            (docs / "fonts-culmus" / "copyright").write_text("Culmus copyright")
+            (common / "GPL-2").write_text("GPL text")
+            result = notices.generate(
+                bundle,
+                processor,
+                os_release=self.os_release("ID=ubuntu\n"),
+                package_docs=docs,
+                common=common,
             )
-            self.assertEqual(
-                component["license"], "See Ubuntu copyright and license notices"
-            )
+        by_name = {c["name"]: c for c in result["components"]}
+        self.assertEqual(
+            by_name["fonts-culmus"]["source"],
+            "https://packages.ubuntu.com/fonts-culmus",
+        )
+        self.assertEqual(
+            by_name["fonts-culmus"]["license"],
+            "See Ubuntu copyright and license notices",
+        )
+        self.assertEqual(by_name["fonts-culmus"]["text"], "Culmus copyright")
+        self.assertEqual(
+            by_name["GPL-2"]["source"], "https://packages.ubuntu.com/base-files"
+        )

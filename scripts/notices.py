@@ -28,10 +28,16 @@ def system_distribution(os_release=Path("/etc/os-release")):
     except OSError:
         lines = []
     fields = dict(line.split("=", 1) for line in lines if "=" in line)
-    return DISTRIBUTIONS.get(fields.get("ID", "").strip('"'), DISTRIBUTIONS["debian"])
+    return DISTRIBUTIONS.get(fields.get("ID", "").strip("\"'"), DISTRIBUTIONS["debian"])
 
 
-def generate(bundle, processor, os_release=Path("/etc/os-release")):
+def generate(
+    bundle,
+    processor,
+    os_release=Path("/etc/os-release"),
+    package_docs=Path("/usr/share/doc"),
+    common=Path("/usr/share/common-licenses"),
+):
     system, packages, licenses = system_distribution(os_release)
     release = json.loads((bundle / "release.json").read_text())
     components = []
@@ -58,7 +64,7 @@ def generate(bundle, processor, os_release=Path("/etc/os-release")):
                 "text": "\n\n".join(texts),
             }
         )
-    for path in Path("/usr/share/doc").glob("*/copyright"):
+    for path in package_docs.glob("*/copyright"):
         components.append(
             {
                 "name": path.parent.name,
@@ -68,7 +74,6 @@ def generate(bundle, processor, os_release=Path("/etc/os-release")):
                 "text": path.read_text(errors="replace"),
             }
         )
-    common = Path("/usr/share/common-licenses")
     for path in common.iterdir() if common.exists() else []:
         if path.is_file():
             components.append(
