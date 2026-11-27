@@ -1339,71 +1339,73 @@ export function App() {
                 {buildBlocker && <p id="build-requirement" role="status" className="hint">{buildBlocker}</p>}
               </section>
 
-              <section className="card preview">
-                <h2>Preview your settings</h2>
-                <p className="hint">
-                  These synthetic Hebrew and English preview works demonstrate
-                  title pages, headings, lists, notes, and paired and unpaired text.
-                  Print preview shows typeset pages; text preview shows reflowing HTML.
-                  Preview sources are supplied automatically. Your chosen source
-                  priorities apply when you build the complete book.
-                </p>
-                <label htmlFor="preview-format">Preview format</label>
-                <SettingHelp label="Preview format">Text shows a reflowable HTML sample. Print layout typesets a PDF sample to show how the pages will look in print.</SettingHelp>
-                  <select id="preview-format" value={previewMode} onChange={(e) => setPreviewMode(e.target.value as "html" | "pdf")}>
-                    <option value="html">Text (HTML)</option>
-                    <option value="pdf">Print layout (PDF)</option>
-                  </select>
-                <SampleAllowance allowances={account?.allowances} />
-                {previewMode === "pdf" && <p className="hint">
-                  Typesetting takes longer than text preview.
+              <div className="preview-column">
+                <section className="card preview">
+                  <h2>Preview your settings</h2>
+                  <p className="hint">
+                    These synthetic Hebrew and English preview works demonstrate
+                    title pages, headings, lists, notes, and paired and unpaired text.
+                    Print preview shows typeset pages; text preview shows reflowing HTML.
+                    Preview sources are supplied automatically. Your chosen source
+                    priorities apply when you build the complete book.
+                  </p>
+                  <label htmlFor="preview-format">Preview format</label>
+                  <SettingHelp label="Preview format">Text shows a reflowable HTML sample. Print layout typesets a PDF sample to show how the pages will look in print.</SettingHelp>
+                    <select id="preview-format" value={previewMode} onChange={(e) => setPreviewMode(e.target.value as "html" | "pdf")}>
+                      <option value="html">Text (HTML)</option>
+                      <option value="pdf">Print layout (PDF)</option>
+                    </select>
+                  <SampleAllowance allowances={account?.allowances} />
+                  {previewMode === "pdf" && <p className="hint">
+                    Typesetting takes longer than text preview.
 
-                </p>}
-                <p role="status" id="preview-requirement">
-                  {!user ? (
-                    <a href="/#account" onClick={openAccount}>
-                      Sign in to see a sample
-                    </a>
-                  ) : !hasConsent ? (
-                    <a href="/#account" onClick={openAccount}>
-                      Review processing consent in your account to preview.
-                    </a>
-                  ) : previewBlocker ? (
-                    previewBlocker
+                  </p>}
+                  <p role="status" id="preview-requirement">
+                    {!user ? (
+                      <a href="/#account" onClick={openAccount}>
+                        Sign in to see a sample
+                      </a>
+                    ) : !hasConsent ? (
+                      <a href="/#account" onClick={openAccount}>
+                        Review processing consent in your account to preview.
+                      </a>
+                    ) : previewBlocker ? (
+                      previewBlocker
+                    ) : (
+                      previewStatus
+                    )}
+                  </p>
+                  {preview && previewMode === "pdf" ? (
+                    <>
+                      <object
+                        className="pdf-preview" data={preview} type="application/pdf"
+                        aria-label="Print settings demonstration"
+                      >
+                        <p>Your browser cannot display this PDF.</p>
+                      </object>
+                      <p><a href={preview} download="sample.pdf">Download the print sample</a></p>
+                    </>
+                  ) : preview ? (
+                    <iframe
+                      title="Settings demonstration"
+                      sandbox=""
+                      srcDoc={preview}
+                    />
                   ) : (
-                    previewStatus
+                    <div className="empty">Your sample will appear here.</div>
                   )}
-                </p>
-                {preview && previewMode === "pdf" ? (
-                  <>
-                    <object
-                      className="pdf-preview" data={preview} type="application/pdf"
-                      aria-label="Print settings demonstration"
-                    >
-                      <p>Your browser cannot display this PDF.</p>
-                    </object>
-                    <p><a href={preview} download="sample.pdf">Download the print sample</a></p>
-                  </>
-                ) : preview ? (
-                  <iframe
-                    title="Settings demonstration"
-                    sandbox=""
-                    srcDoc={preview}
-                  />
-                ) : (
-                  <div className="empty">Your sample will appear here.</div>
-                )}
-                <button
-                  disabled={!!previewBlocker}
-                  aria-describedby="preview-requirement"
-                  onClick={() => {
-                    if (!user || !hasConsent) openAccount();
-                    else refreshPreview((n) => n + 1);
-                  }}
-                >
-                  {previewMode === "pdf" ? "Update print sample" : "Update text sample"}
-                </button>
-              </section>
+                  <button
+                    disabled={!!previewBlocker}
+                    aria-describedby="preview-requirement"
+                    onClick={() => {
+                      if (!user || !hasConsent) openAccount();
+                      else refreshPreview((n) => n + 1);
+                    }}
+                  >
+                    {previewMode === "pdf" ? "Update print sample" : "Update text sample"}
+                  </button>
+                </section>
+              </div>
             </div>
 
           </main>

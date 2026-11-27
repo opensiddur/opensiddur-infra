@@ -168,8 +168,14 @@ main {
 .settings {
   grid-area: settings;
 }
-.preview {
+/* The column fills the settings row, so the sticky preview stays beside the
+   settings and stops before "Create your book". */
+.preview-column {
   grid-area: preview;
+  align-self: stretch;
+  min-width: 0;
+}
+.preview {
   position: sticky;
   top: 16px;
 }

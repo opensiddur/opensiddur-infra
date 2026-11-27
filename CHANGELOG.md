@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+- "Preview your settings" follows the scroll only beside the settings; it no longer
+  floats over "Create your book".
 - Development follows the `main` branches of infra, opensiddur-processor and
   opensiddur-projects, redeployed on every merge to `main` and daily when any has moved.
   Production runs the latest Builder release with the newest full releases of
